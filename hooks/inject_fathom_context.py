@@ -2,35 +2,53 @@
 """
 UserPromptSubmit hook for the Fathom Mode plugin.
 
-Three branches based on state file content:
+Four behaviors based on the user's prompt:
 
-  1. State file absent OR corrupted
-     → no injection (hook self-gates; plugin is installed but no Fathom
-       activity is in progress).
+  1. Prompt is exactly `/fathom-mode:fathom` (no args)
+     → Hook overwrites the state file with a pending-new-task stub
+       (immediately discarding any prior session — "干净简单不留" per
+       Lawrence's design). Then block + "Fathom Mode is ready." No LLM.
+       The next plain user message will become the new task (Behavior 4).
 
-  2. State has pending_task_flag = "new" or "replace" (Fix X)
-     → inject a "this user message IS the task" reminder telling Claude to
-       run init_session.py (and exit_session.py first if "replace") before
-       responding. Includes an explicit escape valve for the case where
-       the user's message is clearly NOT a task description (e.g., idle
-       question, clarification request); Claude may answer directly and
-       re-issue the lock phrase, leaving the flag set until consumed or
-       the user explicitly exits.
+  2. Prompt starts with `/fathom-mode:fathom ` (args present)
+     → Hook runs init_session.py --task "<args>" via subprocess (creates
+       a fresh session, overwriting any prior state including pending
+       stubs from Behavior 1) AND injects a reminder telling the LLM
+       what to do (first-turn extraction + three-part response).
 
-  3. State has a real active session (no pending flag)
-     → inject the current Fathom-session reminder (three-part rhythm,
-       call update_graph.py, append Score block, in-session vs tangential
-       judgment is the model's per vision §3 "intelligence over enforcement").
+  3. Prompt starts with `/fathom-mode:` (any other plugin slash command,
+     incl. /fathom-mode:fathom-status / -compile / -exit)
+     → Skip injection, let the slash command's .md body drive behavior.
 
-stdin payload from Claude Code is ignored — the state file is the source
-of truth. Always exits 0 to avoid blocking the user prompt on hook errors.
+  4. Any other prompt (normal user message)
+     a. State has pending_new_task flag
+        → This message IS the new task. Hook runs init_session.py --task
+          "<this message>" via subprocess, then injects a fresh-session
+          reminder. Mirrors Behavior 2 but triggered from a user message
+          instead of a slash command.
+     b. State has a real active session (session_id + task)
+        → Inject the in-session reminder (three-part rhythm, call
+          update_graph.py, append Score block).
+     c. Neither
+        → Self-gate (no injection — plugin installed but no Fathom
+          activity in progress).
+
+Two-step entry pattern (bare command then plain message) is back, but
+with a critical difference from the earlier Fix X attempt: bare command
+WIPES old state immediately, so the pending stub never coexists with
+old session data. The Drake/Tesla "new message absorbed into old
+session" bug class is structurally impossible.
+
+Always exits 0 to avoid blocking the user prompt on hook errors.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Cross-platform stdout — Windows default codecs can't encode em-dashes etc.
@@ -38,6 +56,9 @@ try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
 except (AttributeError, OSError):
     pass
+
+
+_FATHOM_ENTRY = "/fathom-mode:fathom"
 
 
 def _emit(reminder_text: str | None) -> None:
@@ -54,7 +75,7 @@ def _emit(reminder_text: str | None) -> None:
 
 
 def _build_active_session_reminder(state: dict) -> str:
-    """Existing in-session reminder — no pending flag, real session active."""
+    """In-session reminder — real session active, normal user prompt arrives."""
     task = state.get("task", "(unknown task)")
     score_pct = state.get("score_pct", 0)
     turn = int(state.get("turn_count", 0))
@@ -62,113 +83,210 @@ def _build_active_session_reminder(state: dict) -> str:
         f"[Fathom Mode active — turn {turn + 1} — score {score_pct}%]\n"
         f"Current task: {task}\n"
         "Respond in the three-part format: short answer + insight + one targeted question. "
-        "Before responding, call update_graph.py via Bash. After responding, append the Score block. "
+        "Before responding, call update_graph.py via Bash. **Score block goes at the TOP "
+        "of your response (just the 2-line `Fathom Score` + bar; no Surface/Depth/Bedrock "
+        "breakdown rows, no Turn/dims row).** "
         "If this message is clearly unrelated to the current task, answer directly and mark it "
         "tangential (do not update the graph)."
     )
 
 
-def _build_pending_new_reminder() -> str:
-    """Case 2 follow-up — user just entered Fathom Mode with no prior session."""
+def _build_session_init_reminder(task: str, *, source: str) -> str:
+    """
+    Injected after hook successfully ran init_session.py. The `source` arg
+    distinguishes whether the trigger was an args-bearing slash command or
+    a pending-stub consumption — affects only the framing line.
+    """
+    # Compute the absolute path here. Hook-injected `additionalContext` is
+    # NOT processed by Claude Code's slash-command-body expansion machinery,
+    # so `${CLAUDE_PLUGIN_ROOT}` would NOT be expanded — Bash would receive
+    # the literal `${CLAUDE_PLUGIN_ROOT}/scripts/...`, expand it to empty
+    # (env var isn't propagated to Bash-tool subprocesses on Windows), and
+    # try to open `/scripts/update_graph.py` which git-bash mistranslates
+    # into `C:\Program Files\Git\scripts\...` → "no such file" error.
+    # Using as_posix() so backslash separators on Windows become forward
+    # slashes that bash handles cleanly. Wrapping in double quotes covers
+    # any whitespace in the install path.
+    update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
+
+    if source == "args":
+        framing = (
+            f'[Fathom Mode: new session initialized for task "{task}"]\n'
+            "The UserPromptSubmit hook ran init_session.py for you when you saw "
+            f"`/fathom-mode:fathom <task>`."
+        )
+    else:  # source == "pending"
+        framing = (
+            f'[Fathom Mode: pending-new-task consumed → fresh session for "{task}"]\n'
+            "The user previously typed bare /fathom-mode:fathom (which wiped any "
+            "prior session and set a pending flag). This message IS the new task. "
+            "The hook ran init_session.py for you."
+        )
     return (
-        "[Fathom Mode: pending first task]\n"
-        "The user just entered Fathom Mode via empty `/fathom-mode:fathom` invocation, "
-        "and the lock phrase asked them to send their task as their next message. "
-        "**This message IS the task description.**\n"
+        framing + " The state file is fresh, any prior session has been overwritten, "
+        "this is the first turn.\n"
         "\n"
-        "Required actions BEFORE responding:\n"
-        "1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/init_session.py --task \"<the user's verbatim message>\"` via Bash\n"
-        "2. Perform first-turn extraction per SKILL.md and call `update_graph.py --user-input ... --nodes '...'`\n"
-        "3. Begin normal three-part response (short answer + insight + one targeted question) with Score block at the end\n"
+        "Required BEFORE responding — call update_graph.py via Bash exactly like this "
+        "(replace the example nodes JSON with your real extraction; the script auto-tracks "
+        "turn count internally, do not pass turn-related flags):\n"
         "\n"
-        "Do NOT route to tangential. Do NOT skip init_session.py.\n"
+        f'  python3 "{update_graph_path}" \\\n'
+        f'    --user-input "{task}" \\\n'
+        f'    --nodes \'[{{"id":"n1","dimension":"what","node_type":"fact",'
+        f'"content":"...","raw_quote":"...","confidence":0.9,"secondary_dimensions":[]}}]\'\n'
         "\n"
-        "Escape valve: if the message is clearly NOT a task description (e.g., an idle question like \"what's 2+2\", "
-        "a clarification request, or a request to cancel), you MAY answer it directly and re-issue the lock phrase "
-        "(\"Fathom Mode is ready. Send your task as your next message — I'll start the Fathom session with whatever "
-        "you write next.\"). The pending flag stays set until a real task arrives or the user explicitly cancels via "
-        "`/fathom-mode:fathom-exit`."
+        "Use the absolute script path above verbatim — do NOT substitute "
+        "`${CLAUDE_PLUGIN_ROOT}/scripts/update_graph.py`, that env var is not "
+        "exported to Bash-tool subprocesses and bash will mis-resolve the empty path.\n"
+        "\n"
+        "**Valid flags are ONLY**: --user-input (required), --nodes (optional JSON array), "
+        "--task-type (optional, one of: thinking|creation|execution|learning|general). "
+        "Do NOT pass --turn, --turn-count, --session-id, or any other flag — the script "
+        "silently ignores them as a defensive measure but they're not part of the contract.\n"
+        "\n"
+        "Response format (per SKILL.md three-part rhythm):\n"
+        "- **At the very TOP**: 2-line Score block — `Fathom Score` line, then "
+        "`██████░░░░░░░░ NN% (+N)` (top bar 14 chars, score_pct, signed score_delta). "
+        "No Surface/Depth/Bedrock rows, no Turn/dims row.\n"
+        "- Blank line, then acknowledge entering Fathom Mode and restate the task "
+        "in the user's own framing.\n"
+        "- Provide your insight (one paragraph).\n"
+        "- Ask exactly one targeted orientation question.\n"
+        "\n"
+        "Do NOT call init_session.py — already done by the hook.\n"
+        "Do NOT treat this as a continuation of any prior session — the prior state has been "
+        "overwritten by the hook. This is turn 1 of a brand-new session about the task above.\n"
+        "Do NOT execute the user's task — you are in planning mode."
     )
 
 
-def _build_pending_replace_reminder(state: dict) -> str:
-    """Case 4 follow-up — user signaled task switching while a session was active."""
-    old_task = state.get("task", "(unknown task)")
-    old_score = state.get("score_pct", 0)
-    old_turn = int(state.get("turn_count", 0))
-    return (
-        "[Fathom Mode: pending task replacement]\n"
-        f"The user previously invoked empty `/fathom-mode:fathom` while a session was active "
-        f"(old session on \"{old_task}\" — turn {old_turn} at {old_score}%), and the lock phrase "
-        "told them their next message would replace the current session. **This message IS the new task description.**\n"
-        "\n"
-        "Required actions BEFORE responding:\n"
-        "1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/exit_session.py` via Bash to clear the old session\n"
-        "2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/init_session.py --task \"<the user's verbatim message>\"` via Bash\n"
-        "3. Perform first-turn extraction per SKILL.md and call `update_graph.py --user-input ... --nodes '...'`\n"
-        "4. Begin a new three-part response with Score block — this is the new session, not a continuation of the old\n"
-        "\n"
-        "Do NOT route to tangential. Do NOT try to continue the old session by appending to its nodes.\n"
-        "\n"
-        "Escape valve: if the message is clearly NOT a task description (e.g., an idle question, a clarification "
-        "request, or a request to cancel), you MAY answer it directly and re-issue the lock phrase. The pending "
-        "flag stays set until a real task arrives or the user explicitly cancels via `/fathom-mode:fathom-exit` "
-        "(which would also clear the old session)."
-    )
-
-
-def _candidate_state_paths() -> list[Path]:
+def _state_path() -> Path:
     """
-    Path resolution must match scripts/session_state.py exactly, otherwise
-    the hook and the scripts disagree on where state lives and the hook
-    silently no-ops while a session is active.
-
-    Per Anthropic docs, ${CLAUDE_PLUGIN_DATA} is exported only to hook
-    subprocesses and MCP/LSP server subprocesses — NOT to the Bash-tool
-    subprocesses that init_session.py / update_graph.py run inside. Those
-    scripts therefore fall back to ~/.fathom-mode/. The hook gets the env
-    var but must check both locations (env var first for forward-compat,
-    fallback second to actually find what scripts wrote).
+    Single canonical state file path. MUST match scripts/session_state.py.
+    See session_state._state_dir() docstring for why we always use
+    ~/.fathom-mode/ and ignore CLAUDE_PLUGIN_DATA.
     """
-    paths: list[Path] = []
-    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if plugin_data:
-        paths.append(Path(plugin_data) / "active_session.json")
-    paths.append(Path.home() / ".fathom-mode" / "active_session.json")
-    return paths
+    return Path.home() / ".fathom-mode" / "active_session.json"
+
+
+def _read_state() -> dict | None:
+    """Return parsed state dict, or None if absent / corrupted."""
+    path = _state_path()
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _wipe_to_pending_stub() -> None:
+    """
+    Overwrite the state file with a pending-new-task stub. Old session
+    data (if any) is discarded immediately — "干净简单不留". Atomic via
+    temp file + replace so a crash mid-write can't leave a half-rewritten
+    file.
+    """
+    state_path = _state_path()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps({
+        "pending_new_task": True,
+        "pending_set_at": datetime.now(timezone.utc).isoformat(),
+    }, indent=2, ensure_ascii=False)
+    tmp = state_path.with_suffix(".json.tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    tmp.replace(state_path)
+
+
+def _scripts_dir() -> Path:
+    """Return the plugin's scripts/ directory (sibling of hooks/)."""
+    return Path(__file__).resolve().parent.parent / "scripts"
+
+
+def _try_run_init_session(task: str) -> bool:
+    """
+    Run init_session.py --task "<task>" via subprocess. Return True on success.
+
+    On any failure (script missing, non-zero exit, exception) return False.
+    Caller falls through to skip-injection so the .md body's defensive
+    fallback (or the user re-trying) can attempt the init from another path.
+    """
+    init_script = _scripts_dir() / "init_session.py"
+    if not init_script.exists():
+        return False
+    try:
+        # Force UTF-8 decoding of the child's stdout/stderr — without this,
+        # Windows defaults to GBK / cp1252 and the reader thread crashes on
+        # the em-dashes / box-drawing characters init_session.py emits.
+        # errors="replace" guards against any other oddities.
+        result = subprocess.run(
+            [sys.executable, str(init_script), "--task", task],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        return result.returncode == 0
+    except (subprocess.SubprocessError, OSError):
+        return False
 
 
 def main() -> None:
-    state_path: Path | None = None
-    for candidate in _candidate_state_paths():
-        if candidate.exists():
-            state_path = candidate
-            break
-
-    if state_path is None:
-        # No state file in any known location — self-gate.
-        sys.exit(0)
-
+    # Read stdin payload to detect plugin slash commands.
+    # IMPORTANT: read raw bytes from sys.stdin.buffer and decode as UTF-8
+    # explicitly. sys.stdin.read() uses the OS default codec, which on
+    # Windows is GBK / cp1252 — this mangles non-ASCII prompts (Chinese,
+    # em-dashes, etc.) into surrogate-escaped garbage that then propagates
+    # into the subprocess args + JSON writes downstream and crashes
+    # init_session.py with a UnicodeEncodeError.
     try:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
+        payload_raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        payload = json.loads(payload_raw) if payload_raw else {}
     except (OSError, json.JSONDecodeError):
-        # Corrupted state file — fail open rather than block the user.
+        payload = {}
+    prompt_text = (payload.get("prompt") or "").strip()
+
+    # Behavior 1: bare `/fathom-mode:fathom` → wipe state to pending stub
+    # + instant block + "Fathom Mode is ready." Old session is discarded
+    # immediately; next plain user message becomes the new task.
+    if prompt_text == _FATHOM_ENTRY:
+        _wipe_to_pending_stub()
+        sys.stdout.write(json.dumps({
+            "decision": "block",
+            "reason": "Fathom Mode is ready.",
+        }))
         sys.exit(0)
 
-    # Branch by pending flag (Fix X) before falling back to in-session reminder.
-    flag = state.get("pending_task_flag")
-    if flag == "new":
-        _emit(_build_pending_new_reminder())
-    elif flag == "replace":
-        _emit(_build_pending_replace_reminder(state))
-    elif state.get("session_id") and state.get("task"):
-        # Real active session, no pending flag → existing in-session reminder.
-        _emit(_build_active_session_reminder(state))
-    else:
-        # State file exists but no real session and no pending flag (degenerate
-        # state, e.g., an exit_session that didn't fully clear). Self-gate.
-        pass
+    # Behavior 2: `/fathom-mode:fathom <task>` (args present) →
+    # hook runs init_session.py + injects reminder. Trailing space
+    # distinguishes args from sibling commands like /fathom-mode:fathom-status.
+    if prompt_text.startswith(_FATHOM_ENTRY + " "):
+        task = prompt_text[len(_FATHOM_ENTRY) + 1:].strip()
+        if task and _try_run_init_session(task):
+            _emit(_build_session_init_reminder(task, source="args"))
+        # Fall through to skip injection if task empty or init failed.
+        sys.exit(0)
 
+    # Behavior 3: other /fathom-mode:* slash commands → skip injection.
+    if prompt_text.startswith("/fathom-mode:"):
+        sys.exit(0)
+
+    # Behavior 4: normal user prompt — depends on state.
+    state = _read_state()
+
+    # 4a: pending-new-task stub set by Behavior 1 → this message IS the new task.
+    if state and state.get("pending_new_task"):
+        if prompt_text and _try_run_init_session(prompt_text):
+            _emit(_build_session_init_reminder(prompt_text, source="pending"))
+        # If empty prompt (defensive) or init failed: keep stub, no injection.
+        sys.exit(0)
+
+    # 4b: real active session → in-session reminder.
+    if state and state.get("session_id") and state.get("task"):
+        _emit(_build_active_session_reminder(state))
+
+    # 4c: no state at all → self-gate.
     sys.exit(0)
 
 

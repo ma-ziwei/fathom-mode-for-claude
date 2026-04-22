@@ -31,19 +31,18 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_graph.py \
 
 The script returns `score_pct`, `score_delta`, `surface_pct`, `depth_pct`, `bedrock_pct`, `dimensions_active`, `next_target_dimension`, `turn_count`. Use these in the Score block.
 
-After responding, append the Score block exactly:
+**Present the Score block FIRST** — at the very top of your response, before the short answer / insight / question. The block is exactly two lines:
 
 ```
 Fathom Score
 ██████░░░░░░░░ 52% (+17)
-  Surface:  ████░░░░  active dims: 1/6 (what)
-  Depth:    ██░░░░░░  next: why
-  Bedrock:  ░░░░░░░░  turn 1
 ```
 
-Top bar 14 chars, sub bars 8 chars (`█`/`░`). Surface row: `active dims: N/6 (lowercase list)`. Depth row: `next: <dim>`. Bedrock row: `turn N`.
+Top bar 14 chars (`█`/`░`). The number is `score_pct`%, the parenthetical is the `score_delta` with explicit sign (e.g., `+17`, `-3`, `+0`). Do NOT add Surface/Depth/Bedrock breakdown rows. Do NOT add Turn / active dims rows. Just the two lines above.
 
-If `score_pct >= 50`, blank line then exactly:
+After the Score block, blank line, then your short answer / insight / question.
+
+If `score_pct >= 50`, after the question add a blank line then exactly:
 
 ```
 💡 *Ready to plan? Reply **plan** to compile what we've fathomed into an action plan, or keep fathoming to go deeper.*

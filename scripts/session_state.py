@@ -29,12 +29,21 @@ def _state_dir() -> Path:
     """
     Resolve the plugin's persistent data directory.
 
-    Prefers CLAUDE_PLUGIN_DATA (set by Claude Code when the plugin is loaded).
-    Falls back to ~/.fathom-mode/ for standalone script runs (testing).
+    ALWAYS ~/.fathom-mode/ — we deliberately ignore CLAUDE_PLUGIN_DATA.
+
+    Reason: CLAUDE_PLUGIN_DATA is exported to hook subprocesses but NOT
+    to Bash-tool subprocesses (Anthropic platform behavior on Windows
+    confirmed empirically). If we honored the env var, the hook's
+    init_session subprocess would write to the PLUGIN_DATA path while
+    Claude's Bash-tool calls to update_graph.py would write to
+    ~/.fathom-mode/. State files would split, hook reads stale state
+    from one path while Bash writes to another, and bare /fathom-mode:fathom
+    appears to "wipe" but the next message resurrects the old session.
+
+    By forcing ~/.fathom-mode/ everywhere (hook, hook subprocess, Bash
+    subprocess), all access converges on a single file. Cross-platform
+    OK because Path.home() resolves correctly on Win/Mac/Linux.
     """
-    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if plugin_data:
-        return Path(plugin_data)
     return Path.home() / ".fathom-mode"
 
 

@@ -119,11 +119,27 @@ def _parse_nodes_arg(nodes_arg: str | None, turn_count: int, warnings: list) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Update Intent Graph after a user turn.")
-    parser.add_argument("--user-input", required=True, help="The user's verbatim message.")
+    # Accept --user-message as a defensive alias — Claude has been observed
+    # hallucinating that flag name (semantically plausible) on first try, then
+    # erroring + retrying. Aliasing it costs one extra option string and avoids
+    # the round-trip + visible error in the demo.
+    parser.add_argument(
+        "--user-input", "--user-message",
+        dest="user_input", required=True,
+        help="The user's verbatim message. (--user-message accepted as alias.)",
+    )
     parser.add_argument("--nodes", default=None, help="JSON array of Node dicts emitted by Claude.")
     parser.add_argument("--task-type", default=None,
                         choices=["thinking", "creation", "execution", "learning", "general"],
                         help="Optional task-type classification.")
+    # Defensive: silently accept --turn / --turn-count / --session-id flags
+    # Claude has been observed hallucinating. The script tracks these
+    # internally from state file; the passed values are ignored. Better
+    # than `unrecognized arguments` exit 2 mid-demo.
+    parser.add_argument("--turn", "--turn-count", dest="_ignored_turn",
+                        default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--session-id", dest="_ignored_session_id",
+                        default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     state = require_active()  # exits 1 if no active session
