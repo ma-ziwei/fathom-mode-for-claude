@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*$py.class
+*.egg
+*.egg-info/
+
+# Build artifacts
+dist/
+build/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local Claude Code test artifacts
+.claude/
