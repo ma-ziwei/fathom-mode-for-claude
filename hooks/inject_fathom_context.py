@@ -25,6 +25,12 @@ import os
 import sys
 from pathlib import Path
 
+# Cross-platform stdout — Windows default codecs can't encode em-dashes etc.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+except (AttributeError, OSError):
+    pass
+
 
 def _emit(reminder_text: str | None) -> None:
     """Print hook output JSON if there's a reminder; otherwise nothing."""

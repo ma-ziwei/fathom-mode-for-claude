@@ -16,6 +16,14 @@ import os
 import sys
 from pathlib import Path
 
+# Cross-platform stdout: Windows defaults to GBK / cp1252 which can't encode
+# the box-drawing characters (█░) the Score bar uses. Reconfigure once on
+# import so every script that uses session_state gets UTF-8 stdout for free.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+except (AttributeError, OSError):
+    pass
+
 
 def _state_dir() -> Path:
     """
