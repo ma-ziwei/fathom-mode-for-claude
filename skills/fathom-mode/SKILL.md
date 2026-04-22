@@ -6,57 +6,95 @@ allowed-tools: Bash, Read, Write
 
 # Fathom Mode
 
-Fathom Mode is a planning session. While active, **do not execute the user's task** — build shared understanding through three-part dialogue, then compile a structured plan the user approves before any action.
+A planning session. While active, **don't execute** — help the user build shared understanding via three-part dialogue. They compile to a plan, review, approve, then execution begins.
 
-## The three-part turn
+## Three-part turn
 
-Every in-session response MUST contain exactly these three parts, in order:
+Every in-session response contains exactly:
 
-1. **Short answer** to what the user just said — 2–4 sentences max.
-2. **Insight** — one observation, tension, or thing worth noticing at current depth (1–2 sentences). Specific, not generic.
-3. **One targeted follow-up question** — advances exactly one dimension of understanding. Never multiple questions in one turn.
+1. **Short answer** (2–4 sentences) directly addressing what the user just said.
+2. **One insight** — a specific observation or tension worth surfacing at current depth.
+3. **One targeted question** — advances exactly one dimension. Multi-choice options are fine when they sharpen the choice; build them from the user's specific context.
+
+Never lecture, never multiple questions, never generic acknowledgements.
 
 ## Per-turn protocol
 
-**Before responding** to in-session input, run via Bash:
+Before responding, call:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_graph.py --user-input "<user's message verbatim>"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_graph.py \
+  --user-input "<verbatim user message>" \
+  --nodes '<JSON array of extracted Node dicts>' \
+  [--task-type thinking|creation|execution|learning|general]
 ```
 
-Returns JSON with `score_pct`, `score_delta`, `dimensions_active`, `next_target_dimension`, `graph_summary`. Use these to inform the question you ask.
+The script returns `score_pct`, `score_delta`, `surface_pct`, `depth_pct`, `bedrock_pct`, `dimensions_active`, `next_target_dimension`, `turn_count`. Use these in the Score block.
 
-**After responding**, append the Score block at the very end:
-
-```
----
-**Fathom Score**: `██████░░░░░░░░ 57%` (Δ +15%)
-Dimensions active: WHAT, WHY | next: HOW
-```
-
-Bar width 14 chars, `█` filled / `░` empty, values from the JSON.
-
-## Tangential turns
-
-If the user asks something **clearly unrelated** to the Fathom task (e.g. weather while planning a career change), answer directly. Append exactly:
+After responding, append the Score block exactly:
 
 ```
-*(outside current Fathom session; resuming planning next turn)*
+Fathom Score
+██████░░░░░░░░ 52% (+17)
+  Surface:  ████░░░░  active dims: 1/6 (what)
+  Depth:    ██░░░░░░  next: why
+  Bedrock:  ░░░░░░░░  turn 1
 ```
 
-For tangential turns: **do not** run `update_graph.py`, **do not** show the Score block. Session stays active.
+Top bar 14 chars, sub bars 8 chars (`█`/`░`). Surface row: `active dims: N/6 (lowercase list)`. Depth row: `next: <dim>`. Bedrock row: `turn N`.
 
-## Exit signals
+If `score_pct >= 50`, blank line then exactly:
 
-- User says `fathom` alone, `compile`, or signals readiness → suggest `/fathom-compile`.
-- User wants to abandon → suggest `/fathom-exit`.
+```
+💡 *Ready to plan? Reply **plan** to compile what we've fathomed into an action plan, or keep fathoming to go deeper.*
+```
+
+## Extraction: `--nodes` JSON
+
+Array of node dicts. Each:
+
+```json
+{
+  "id": "n1",
+  "dimension": "why",
+  "node_type": "goal",
+  "content": "<your distilled understanding>",
+  "raw_quote": "<verbatim substring from user's message>",
+  "confidence": 0.85
+}
+```
+
+Use fresh `n1`, `n2` per turn — script auto-prefixes with turn label.
+
+**Dimensions**: **WHO** people/roles/stakeholders · **WHAT** subject/object/content · **WHY** purpose/motivation/values · **WHEN** time/deadline · **WHERE** physical location/spatial only (NOT "where in life") · **HOW** method/approach/risks/conditions.
+
+Purpose ("in order to…") → **WHY**, not WHERE. Subject → **WHAT**, method → **HOW**.
+
+**`node_type`**: `fact` / `belief` / `value` / `intent` / `constraint` / `emotion` / `assumption` / `goal`
+
+### Discipline
+
+1. **`raw_quote` MUST be a verbatim substring of the user's message.** If you can't point to the exact words, don't create that node.
+2. **Never assert CAUSAL unless the user explicitly used causal language** ("because", "leads to", "causes", "due to", "so that"). Otherwise use `relation_type: supports` or `dependency`.
+3. **Don't extract from confirmations.** If the user's whole message is "ok" / "yes" / "got it" / "thanks" — skip the script call entirely, ask one follow-up question.
+4. **Anchor user's main task on turn 1.** Always emit at least one INTENT or GOAL node.
+
+## Tangential handling
+
+If the user's message is clearly unrelated to the active task:
+
+1. Prefix response with `[tangential - not updating the graph]`.
+2. Answer directly (short).
+3. **Do NOT call update_graph.py. Do NOT show the Score block.**
+4. End with: `(Fathom session unaffected, score still N%. Ready when you want to return to <current topic>.)`
+
+## Task-type (optional)
+
+Pass `--task-type` if you can categorize: `thinking` (decision/tradeoffs) / `creation` (artifact) / `execution` (action) / `learning` (skill) / `general`. Omit if unclear.
 
 ## Compile ceremony
 
-When the user runs `/fathom-compile`, present the script output verbatim with explicit framing: "Review the plan above. Reply 'approve' to proceed, or describe changes."
-
-## References
-
-- `references/three-part-turn.md` — examples (good vs bad)
-- `references/score-interpretation.md` — score band guidance
-- `references/compile-format.md` — compile output template
+User says "plan" / "compile" / runs `/fathom-mode:fathom-compile`:
+1. Call `compile_plan.py`. Present its 5-section output with framing *"Here's what I've fathomed from our conversation. Review carefully."*
+2. End with *"Reply 'approve' to proceed with this plan, or describe what to change."*
+3. On approve, execute per `task_type`, then call `exit_session.py`.
