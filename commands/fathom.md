@@ -78,29 +78,28 @@ Do NOT show the Fathom Score block on this branching message — this is meta-co
 
 ### Case 4 — no args, active session exists
 
-This is a meta-control invocation (likely the user wants to verify plugin reload, check status, or pause). **Do NOT call `update_graph.py` — this isn't a planning turn.** Treat as tangential.
+Meta-control invocation. **Do NOT call `update_graph.py` — this isn't a planning turn.** Treat as tangential.
 
-Narrate the situation transparently, then offer 3 explicit choices. Each choice's downstream behavior is **single-turn and unambiguous** — no cross-turn promises, no waiting on a "next message will be the task" interpretation:
+Narrate the active session transparently and tell the user the two ways forward — **no numeric menu, no "wait for next message" promise**. The user picks by what they actually do next; each path is atomic and handled by its own command or by SKILL.md's in-session flow:
 
-> A session is already active for **"<current task, truncated to 80 chars + … if longer>"** — currently turn N at X%. The `/fathom-mode:fathom` re-invocation came in with no task argument, so running `init_session.py` now would either overwrite the live session or seed a new one with placeholder data — neither looks like what you want.
+> A Fathom session is already active on **"<current task, truncated to 80 chars + … if longer>"** — currently turn N at X%. The `/fathom-mode:fathom` re-invocation came in with no task argument, so I won't run `init_session.py` (that would overwrite the live session).
 >
-> Marking this as tangential (a meta/control action, not a planning turn) — not calling `update_graph.py`.
+> Two ways forward:
+> - **To continue the current session** — just send your next planning message in normal conversation. No need to re-invoke `/fathom-mode:fathom`.
+> - **To start a new task** — re-invoke as `/fathom-mode:fathom <your new task>`.
 >
-> What's your intent?
->
-> 1. **Continue** the existing session (just send your next planning message — e.g., what's making this week feel crowded)
-> 2. **Restart** with a fresh task (then re-invoke as `/fathom-mode:fathom <real task text>`)
-> 3. **Verify plugin reload only** — confirm and I'll wait for your next move
+> *(If you'd rather compile the current session into a plan first, use `/fathom-mode:fathom-compile`.)*
 
-Based on the user's reply:
+After this response, take no further action. The user's next move determines what happens:
+- They send a planning message → SKILL.md normal in-session flow fires (hook injects active-session reminder; Claude follows three-part protocol).
+- They re-invoke `/fathom-mode:fathom <new task>` → Case 3 logic fires (args + active session — that case offers compile/exit/cancel choice for the old session before starting the new).
+- They invoke `/fathom-mode:fathom-compile` → compile flow per `commands/fathom-compile.md`.
 
-- **1**: Acknowledge and stand by. The user's next message will be a normal in-session planning turn — apply the standard SKILL.md three-part protocol (call `update_graph.py` with extracted nodes, respond with three-part format, append Score block).
-- **2**: Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/exit_session.py` to clear the old session state. Then acknowledge briefly: "Old session cleared. Re-invoke `/fathom-mode:fathom <your new task>` to start fresh." Wait for the user to issue that fresh slash command — it will land in Case 1 logic.
-- **3**: Acknowledge briefly: "Plugin loaded — Fathom session for **'<current task truncated>'** still active at turn N, score X%. Send your next planning message when ready, or pick `/fathom-mode:fathom-compile` / `/fathom-mode:fathom-exit` when done."
+Do NOT show the Fathom Score block on this branching message.
 
-Do NOT show the Fathom Score block on this branching message either.
+You may improvise narration style (Lawrence's name, contextual examples derived from the active session task, etc.) — the prompt above is the **minimum required content**, not a verbatim mandate. Stay grounded in the facts (correct task, turn, score from the state file) and don't introduce new options beyond the two listed.
 
-**Why no "wait for next message = new task" multi-turn flow here**: in an active session, the `UserPromptSubmit` hook fires on every user message and injects "active session reminder" context. A cross-turn promise from this slash command can't survive that hook injection — Claude would default to SKILL.md's tangential / in-session routing on the next turn. The 3-option menu keeps every branch single-turn and atomic, sidestepping the architectural conflict. (Case 2 — no active session — can safely use the multi-turn lock phrase because no hook injection happens when state file doesn't exist.)
+**Why no "wait for next message = new task" multi-turn flow here**: in an active session, the `UserPromptSubmit` hook fires on every user message and injects "active session reminder" context. A cross-turn promise from this slash command can't survive that hook injection — Claude would default to SKILL.md's tangential / in-session routing on the next turn. Listing two atomic paths and letting the user pick by their next action sidesteps the architectural conflict entirely. (Case 2 — no active session — safely uses the multi-turn lock phrase because no hook injection happens when the state file doesn't exist.)
 
 ## Step 3: Anti-foot-gun notes
 
