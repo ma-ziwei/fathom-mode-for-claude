@@ -89,7 +89,12 @@ def require_active() -> dict:
 
 # ---------------------------------------------------------------------------
 # CLI subcommands:
-#   `session_state.py check` — exit 0 if active session exists, 1 otherwise.
+#   `session_state.py check` — exit 0 if a REAL active session exists
+#                              (state file present AND has session_id AND
+#                              has non-empty task), 1 otherwise. Pending-
+#                              task-flag stubs from Case 2 are NOT counted
+#                              as real sessions — they're transient markers
+#                              awaiting init_session.py.
 #   `session_state.py path`  — print the canonical state file path to stdout,
 #                              exit 0. Use this before reading the state file
 #                              so callers don't have to guess between
@@ -97,9 +102,18 @@ def require_active() -> dict:
 # Used by commands/fathom.md.
 # ---------------------------------------------------------------------------
 
+
+def _is_real_active_session(state: dict | None) -> bool:
+    """A real active session has both a session_id and a non-empty task.
+    Pending-task-flag-only stubs (Case 2 markers) don't qualify."""
+    if state is None:
+        return False
+    return bool(state.get("session_id")) and bool(state.get("task"))
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "check":
-        sys.exit(0 if STATE_PATH.exists() else 1)
+        sys.exit(0 if _is_real_active_session(load_state()) else 1)
     if len(sys.argv) == 2 and sys.argv[1] == "path":
         sys.stdout.write(str(STATE_PATH))
         sys.exit(0)

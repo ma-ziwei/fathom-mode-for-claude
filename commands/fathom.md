@@ -44,17 +44,19 @@ This is the happy path: start a new session immediately.
 
 ### Case 2 — no args, no active session
 
-The user has invoked Fathom Mode without a task. **Do NOT run init_session.py yet.** Respond with this **exact** lock phrase:
+The user has invoked Fathom Mode without a task. Mark the state file with a "pending new task" flag, then display the lock phrase. The hook will route the user's next message to `init_session.py` automatically.
 
-> Fathom Mode is ready. Send your task as your next message — I'll start the Fathom session with whatever you write next.
+1. Run via Bash:
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/set_pending.py --flag new
+   ```
+2. Display this **exact** lock phrase:
 
-Then **wait for the user's next message**.
+   > Fathom Mode is ready. Send your task as your next message — I'll start the Fathom session with whatever you write next.
 
-When the next user message arrives:
-- If it reads as a task description: treat its content as `$ARGUMENTS`, run `init_session.py --task "<that message>"`, and proceed as Case 1 from Step 2.
-- If it reads as an unrelated question (e.g., "what's 2+2"): answer it directly, then re-issue the lock phrase to remind the user Fathom Mode is still waiting for the task.
+3. End your response. **Do NOT run init_session.py yourself.** Do NOT promise "I'll wait" in narrative — the next-turn hook will pick up the pending flag and direct Claude to consume the user's next message as the task.
 
-Do NOT show the Fathom Score block on this "ready, waiting" response — no session has started yet.
+Do NOT show the Fathom Score block on this response — no session has started yet.
 
 ### Case 3 — args present, active session exists
 
@@ -78,28 +80,21 @@ Do NOT show the Fathom Score block on this branching message — this is meta-co
 
 ### Case 4 — no args, active session exists
 
-Meta-control invocation. **Do NOT call `update_graph.py` — this isn't a planning turn.** Treat as tangential.
+The user wants to start a new task. Mark the state file with a "pending replace" flag (preserving the old session data so the hook can mention it), then display the modified lock phrase. The hook will route the user's next message to `exit_session.py` + `init_session.py` automatically.
 
-Narrate the active session transparently and tell the user the two ways forward — **no numeric menu, no "wait for next message" promise**. The user picks by what they actually do next; each path is atomic and handled by its own command or by SKILL.md's in-session flow:
+1. Run via Bash:
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/set_pending.py --flag replace
+   ```
+2. Display this lock phrase (truncate `<current task>` to 80 chars + `…` if longer):
 
-> A Fathom session is already active on **"<current task, truncated to 80 chars + … if longer>"** — currently turn N at X%. The `/fathom-mode:fathom` re-invocation came in with no task argument, so I won't run `init_session.py` (that would overwrite the live session).
->
-> Two ways forward:
-> - **To continue the current session** — just send your next planning message in normal conversation. No need to re-invoke `/fathom-mode:fathom`.
-> - **To start a new task** — re-invoke as `/fathom-mode:fathom <your new task>`.
->
-> *(If you'd rather compile the current session into a plan first, use `/fathom-mode:fathom-compile`.)*
+   > Fathom Mode is ready. Your current session on **"<current task>"** (turn N, score X%) will end when you send your next message. Send the new task whenever ready.
 
-After this response, take no further action. The user's next move determines what happens:
-- They send a planning message → SKILL.md normal in-session flow fires (hook injects active-session reminder; Claude follows three-part protocol).
-- They re-invoke `/fathom-mode:fathom <new task>` → Case 3 logic fires (args + active session — that case offers compile/exit/cancel choice for the old session before starting the new).
-- They invoke `/fathom-mode:fathom-compile` → compile flow per `commands/fathom-compile.md`.
+3. End your response. **Do NOT run exit_session.py or init_session.py yourself.** Do NOT promise "I'll wait" in narrative — the next-turn hook will pick up the "replace" flag and direct Claude to consume the user's next message as the new task (running exit_session.py + init_session.py before responding).
 
 Do NOT show the Fathom Score block on this branching message.
 
-You may improvise narration style (Lawrence's name, contextual examples derived from the active session task, etc.) — the prompt above is the **minimum required content**, not a verbatim mandate. Stay grounded in the facts (correct task, turn, score from the state file) and don't introduce new options beyond the two listed.
-
-**Why no "wait for next message = new task" multi-turn flow here**: in an active session, the `UserPromptSubmit` hook fires on every user message and injects "active session reminder" context. A cross-turn promise from this slash command can't survive that hook injection — Claude would default to SKILL.md's tangential / in-session routing on the next turn. Listing two atomic paths and letting the user pick by their next action sidesteps the architectural conflict entirely. (Case 2 — no active session — safely uses the multi-turn lock phrase because no hook injection happens when the state file doesn't exist.)
+**Architecture note (Fix X — the design that resolves the multi-turn 2-step UX)**: this Case used to either present a 1/2/3 menu (which had a useless option 2 — "type 2, Claude exits, then re-invoke") or use 2-path instructional narration (which broke because the next turn's hook injection overrode the prior-turn promise, causing Drake/Tesla bugs where new-topic messages got absorbed as in-session nodes). The current design persists the user's intent into the state file via a `pending_task_flag = "replace"`. The next-turn hook reads that flag and injects a different system reminder (`hooks/inject_fathom_context.py` `_build_pending_replace_reminder`) telling Claude "this message IS the new task, run exit_session.py + init_session.py first." Hook-level enforcement of the 2-step user habit, no conversation-history dependency.
 
 ## Step 3: Anti-foot-gun notes
 
