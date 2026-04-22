@@ -74,23 +74,21 @@ Do NOT show the Fathom Score block on this branching message — this is meta-co
 
 ### Case 4 — no args, active session exists
 
-This is a meta-control invocation (likely the user wants to verify plugin reload, check status, or pause). **Do NOT call update_graph.py — this isn't a planning turn.** Respond:
+**Hard rule**: re-invoking `/fathom-mode:fathom` (with or without args) is itself a strong signal that the user wants to start a new task. The next user message will be treated as the new task and will replace the current session. **Do NOT** offer a 3-way continue/restart/verify menu — the re-invocation already declared intent.
 
-> You have an active Fathom session on **"<current task, truncated to 80 chars + … if longer>"** (turn N, score X%). What would you like?
+Respond with the **exact lock phrase** (same as Case 2) plus the active-session disclosure note:
+
+> Fathom Mode is ready. Send your task as your next message — I'll start the Fathom session with whatever you write next.
 >
-> 1. **Continue** — send your next planning message to resume the current session
-> 2. **Restart** — exit the current session and start a new task (re-invoke as `/fathom-mode:fathom <new task>`)
-> 3. **Verify reload** — just confirming the plugin is loaded; no action needed
->
-> Reply with 1, 2, or 3.
+> *(Note: this will end the current session on **"<current task, truncated to 80 chars + … if longer>"** (turn N, score X%) without compiling. If you wanted to continue the current session instead, just send your next planning message in normal conversation — no need to re-invoke `/fathom-mode:fathom`. If you want to compile the current session into a plan first, use `/fathom-mode:fathom-compile` before starting a new task.)*
 
-Based on the user's reply:
+Then **wait for the user's next message**.
 
-- **1**: Acknowledge and stand by. The user's next message will be a normal in-session planning turn — apply the standard SKILL.md three-part protocol (call update_graph.py with extracted nodes, respond with three-part format, append Score block).
-- **2**: Acknowledge that the user will re-invoke. Do nothing now. (When they re-invoke with `/fathom-mode:fathom <new task>`, that lands in Case 3 logic.)
-- **3**: Acknowledge briefly: "Plugin loaded — Fathom session for **'<current task truncated>'** still active at turn N, score X%. Send your next planning message when ready."
+When the next user message arrives:
+- If it reads as a task description: run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/exit_session.py` (clears the old session state), then run `init_session.py --task "<that message>"` (starts the new session), then proceed as Case 1 from Step 2.
+- If it reads as an unrelated question (e.g., "what's 2+2"): answer it directly, then re-issue the lock phrase to remind the user a new Fathom task is awaited (the old session is still on disk; it will be replaced when the user actually provides a task).
 
-Do NOT show the Fathom Score block on this branching message either.
+Do NOT show the Fathom Score block on this "ready, waiting" response. Do NOT call `update_graph.py` on this response — re-invoking the slash command is meta-control, not a planning turn.
 
 ## Step 3: Anti-foot-gun notes
 
