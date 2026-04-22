@@ -24,10 +24,11 @@ from session_state import save_state
 def _initial_score_pct(task: str) -> int:
     """
     Day 1 stub: longer initial task descriptions imply more dimensions
-    are pre-filled, so initial score is higher. Capped at 55%.
+    are pre-filled, so initial score is higher. Floor 35%, cap 55% per
+    plan verification range. Day 2 replaces with real first-turn extraction.
     """
     base = len(task.strip())
-    score = min(55, max(20, base // 4))
+    score = min(55, max(35, base // 4))
     return score
 
 
