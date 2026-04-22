@@ -59,15 +59,36 @@ def _build_reminder(state: dict) -> str:
     )
 
 
-def main() -> None:
-    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if not plugin_data:
-        # Older Claude Code or env not propagated — fail open silently.
-        sys.exit(0)
+def _candidate_state_paths() -> list[Path]:
+    """
+    Path resolution must match scripts/session_state.py exactly, otherwise
+    the hook and the scripts disagree on where state lives and the hook
+    silently no-ops while a session is active.
 
-    state_path = Path(plugin_data) / "active_session.json"
-    if not state_path.exists():
-        # No active Fathom session — self-gate.
+    Per Anthropic docs, ${CLAUDE_PLUGIN_DATA} is exported only to hook
+    subprocesses and MCP/LSP server subprocesses — NOT to the Bash-tool
+    subprocesses that init_session.py / update_graph.py run inside. Those
+    scripts therefore fall back to ~/.fathom-mode/. The hook gets the env
+    var but must check both locations (env var first for forward-compat,
+    fallback second to actually find what scripts wrote).
+    """
+    paths: list[Path] = []
+    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if plugin_data:
+        paths.append(Path(plugin_data) / "active_session.json")
+    paths.append(Path.home() / ".fathom-mode" / "active_session.json")
+    return paths
+
+
+def main() -> None:
+    state_path: Path | None = None
+    for candidate in _candidate_state_paths():
+        if candidate.exists():
+            state_path = candidate
+            break
+
+    if state_path is None:
+        # No active Fathom session in any known location — self-gate.
         sys.exit(0)
 
     try:
