@@ -85,3 +85,15 @@ def require_active() -> dict:
         }))
         sys.exit(1)
     return state
+
+
+# ---------------------------------------------------------------------------
+# CLI: `python session_state.py check` — exits 0 if active session, 1 otherwise.
+# Used by commands/fathom.md to detect prior session before init_session.py.
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    if len(sys.argv) == 2 and sys.argv[1] == "check":
+        sys.exit(0 if STATE_PATH.exists() else 1)
+    sys.stderr.write("usage: session_state.py check\n")
+    sys.exit(2)
