@@ -1,0 +1,11 @@
+{
+  "name": "fathom-mode",
+  "version": "0.1.0",
+  "description": "Planning session mode for complex tasks. Enter Fathom Mode to build shared understanding through structured dialogue before execution. Use this when you want to plan, think through, or clarify something complex before acting on it.",
+  "author": {
+    "name": "Lawrence Ma"
+  },
+  "license": "MIT",
+  "keywords": ["planning", "intent", "clarification", "protocol", "agent-skills"],
+  "homepage": "https://github.com/[placeholder-will-fill-in]"
+}
