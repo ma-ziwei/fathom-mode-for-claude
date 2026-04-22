@@ -88,12 +88,20 @@ def require_active() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# CLI: `python session_state.py check` — exits 0 if active session, 1 otherwise.
-# Used by commands/fathom.md to detect prior session before init_session.py.
+# CLI subcommands:
+#   `session_state.py check` — exit 0 if active session exists, 1 otherwise.
+#   `session_state.py path`  — print the canonical state file path to stdout,
+#                              exit 0. Use this before reading the state file
+#                              so callers don't have to guess between
+#                              ${CLAUDE_PLUGIN_DATA} and ~/.fathom-mode/.
+# Used by commands/fathom.md.
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "check":
         sys.exit(0 if STATE_PATH.exists() else 1)
-    sys.stderr.write("usage: session_state.py check\n")
+    if len(sys.argv) == 2 and sys.argv[1] == "path":
+        sys.stdout.write(str(STATE_PATH))
+        sys.exit(0)
+    sys.stderr.write("usage: session_state.py {check|path}\n")
     sys.exit(2)

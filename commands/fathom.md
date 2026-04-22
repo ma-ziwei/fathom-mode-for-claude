@@ -19,7 +19,11 @@ Check two things:
    ```
    Exit code 0 = active session exists. Exit code 1 = no active session.
 
-If a session is active, also read its details (you'll need them in Cases 3/4) — use the Read tool on `${CLAUDE_PLUGIN_DATA}/active_session.json` (or fall back to `~/.fathom-mode/active_session.json` if `${CLAUDE_PLUGIN_DATA}` doesn't resolve in your subprocess context). Extract:
+If a session is active, also read its details (you'll need them in Cases 3/4). Get the canonical state-file path via:
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/session_state.py path
+```
+This prints the resolved path (handles the `${CLAUDE_PLUGIN_DATA}` vs `~/.fathom-mode/` fallback for you). Then use the Read tool on that path. Extract:
 - `task` (truncate to 80 chars + `…` if longer when displaying to user)
 - `turn_count`
 - `score_pct`
@@ -95,4 +99,4 @@ Do NOT show the Fathom Score block on this "ready, waiting" response. Do NOT cal
 - Do NOT run `update_graph.py` on any Step 2 branching response. Only Cases 1 / 2-after-task-arrives transitions into in-session mode where update_graph.py applies.
 - Do NOT show the Fathom Score block on any meta-control branching message (Cases 2-waiting, 3, 4). Score block is in-session only.
 - Truncate `<current task>` to 80 chars + `…` when displaying in Cases 3/4 — keep terminal output clean.
-- If the `session_state.py check` Bash call fails for any reason, fall back to `Read` tool on `~/.fathom-mode/active_session.json` to detect active session — file present = active.
+- If the `session_state.py check` Bash call fails for any reason, fall back to `Read` tool on `~/.fathom-mode/active_session.json` to detect active session — file present = active. Same fallback applies if `session_state.py path` errors.
