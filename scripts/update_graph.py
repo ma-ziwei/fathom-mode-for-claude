@@ -47,6 +47,24 @@ def _next_target_dimension(active: list[str]) -> str:
     return _DIMENSION_CYCLE[0]
 
 
+def _truncate_at_word_boundary(text: str, limit: int = 240) -> str:
+    """
+    Word-boundary truncation with ellipsis.
+
+    If text fits in `limit`, return as-is.
+    Else: cut at the last whitespace at-or-before `limit`. If no whitespace
+    found in the first half (limit // 2), fall back to hard-cut at `limit`
+    (defensive — handles pathological no-space inputs).
+    """
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    cut = text.rfind(" ", 0, limit)
+    if cut < limit // 2:
+        cut = limit
+    return text[:cut].rstrip(",.;:") + "\u2026"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Update Intent Graph after a user turn.")
     parser.add_argument("--user-input", required=True, help="The user's verbatim message.")
@@ -62,7 +80,7 @@ def main() -> None:
     new_node = {
         "id": f"n{new_turn}",
         "dimension": new_dim,
-        "content": user_input[:120],  # stub: store first 120 chars as "content"
+        "content": _truncate_at_word_boundary(user_input, limit=240),
     }
 
     nodes = list(state.get("nodes", []))
