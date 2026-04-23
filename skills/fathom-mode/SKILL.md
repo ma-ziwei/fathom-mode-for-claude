@@ -37,7 +37,7 @@ Purpose ("in order to…") → **WHY**, not WHERE. Subject → **WHAT**, method 
 
 1. **`raw_quote` MUST be a verbatim substring of the user's message.** If you can't point to the exact words, don't create that node.
 2. **Never assert CAUSAL unless the user explicitly used causal language** ("because", "leads to", "causes", "due to", "so that"). Otherwise use `relation_type: supports` or `dependency`.
-3. **Don't extract from confirmations.** If the user's whole message is "ok" / "yes" / "got it" / "thanks" — skip the script call entirely, ask one follow-up question.
+3. **Don't extract from confirmations.** If the user's whole message is purely a confirmation or acknowledgment with no new content, skip the script call entirely and ask one follow-up question.
 4. **Anchor user's main task on turn 1.** Always emit at least one INTENT or GOAL node.
 
 ## Tangential handling
@@ -45,7 +45,7 @@ Purpose ("in order to…") → **WHY**, not WHERE. Subject → **WHAT**, method 
 If the user's message is clearly unrelated to the active task:
 
 1. Prefix response with `[tangential - not updating the graph]`.
-2. Answer directly (short).
+2. Answer briefly.
 3. **Do NOT call update_graph.py. Do NOT show the Score block.**
 4. End with: `(Fathom session unaffected, score still N%. Ready when you want to return to <current topic>.)`
 

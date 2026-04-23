@@ -212,8 +212,8 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
         "\n"
         "- If the user's message is unrelated to the plan: answer the question "
         'directly, then add: "Still awaiting your response on the plan — reply '
-        "**approve** to proceed, **reject** to discard, or describe changes "
-        'to revise."\n'
+        "**approve** to proceed, **reject** to discard, or describe what to "
+        'change."\n'
         "\n"
         "- If the message is ambiguous: ask one clarifying question about which "
         "of the above the user intends."
@@ -322,8 +322,8 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
         "- One question that advances a missing dimension.\n"
         "\n"
         "Do NOT call init_session.py — already done by the hook.\n"
-        "Do NOT treat this as a continuation of any prior session — the prior state has been "
-        "overwritten by the hook. This is turn 1 of a brand-new session about the task above.\n"
+        "Do NOT treat this as a continuation of any prior session. The prior "
+        "state was overwritten by the hook; this is turn 1 of a brand-new session.\n"
         "Do NOT execute the user's task — you are in planning mode."
     )
 

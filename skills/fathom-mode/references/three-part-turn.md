@@ -128,5 +128,5 @@ Why bad: takes the parallelism request at face value, recommends the obvious too
 
 - **Restate, do not blow off.** Restating what you understand — including any assumptions — gives the user a chance to catch misinterpretations before the session goes deeper. Skip this and the dialogue can drift ten turns deep on a misunderstanding.
 - **Insight is the load-bearing part.** It supplements a missing dimension, clarifies an ambiguity, corrects a technical misconception, or reframes the user's angle. Without it, the response feels like a survey.
-- **One question, one dimension.** Pick the dimension `update_graph.py` returns as `next_target_dimension` and write the question to advance it. If the JSON returned a different dim than the one you'd guess, trust the JSON.
+- **One question, one dimension.** Pick the dimension `update_graph.py` returns as `next_target_dimension` and write the question to advance it. If the JSON returned a different dim than you'd choose, defer to it.
 - **No tool recommendations, no curricula, no plans during in-session turns.** Those belong in the plan, not the dialogue. In-session, only ask and observe.

@@ -11,7 +11,7 @@ Understanding is shallow. The user has stated a topic and maybe a feeling, but t
 - Focus questions on **WHY** (motivation, what would success look like) and **WHAT** (the concrete object — what they actually want vs. what they think they want).
 - Avoid HOW (tactics) — too early.
 - Insights at this depth notice **what's been left unsaid**: gaps in the framing, ambiguous referents, hidden assumptions about scope.
-- Score gain per turn here is large (15–25% typical) — the user is filling in obvious blanks.
+- Score gain per turn here is large (15–25% typical) — the user is filling in basic blanks.
 
 ## 30 – 60%: Surface filled
 
@@ -41,6 +41,6 @@ Enough understanding for a useful plan. Signal readiness:
 
 ## Calibration notes
 
-- **First turn jumps fast.** The opening user message is dense with signal — Score may leap from 0 to 50%+ in a single turn. This is honest (a first sentence really does contain a lot).
+- **First turn jumps fast.** The opening user message is dense with signal — Score may leap from 0 to 50%+ in a single turn. This is honest: a first sentence carries a lot of dimensional content.
 - **Tangential turns are NOT scored.** If you correctly handled an off-topic question, the Score does not change for that turn (the script wasn't called). The user sees no Score block on tangential turns either.
 - **Score is not a stopping rule.** Planning is always user-triggered via `/fathom-plan`. Never auto-plan.
