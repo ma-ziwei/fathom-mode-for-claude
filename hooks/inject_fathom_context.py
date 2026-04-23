@@ -130,9 +130,20 @@ def _build_in_session_reminder(state: dict) -> str:
         "message, one insight about their underlying intent, and one question "
         "that probes a dimension they have not yet covered.\n"
         "\n"
-        "Before responding, call:\n"
-        f'  python3 "{update_graph_path}" --user-input "<user\'s verbatim message>" '
-        "--nodes '<your extracted nodes as JSON array>'\n"
+        "Before responding, call via Bash. Use a heredoc with quoted "
+        "delimiter so apostrophes, em-dashes, and other punctuation in "
+        "the user's message pass through literally (no shell escaping "
+        "needed):\n"
+        "\n"
+        f"python3 \"{update_graph_path}\" <<'FATHOM_TURN_END'\n"
+        "{\"user_input\": \"<user's verbatim message>\", \"nodes\": [<your extracted nodes as JSON array>]}\n"
+        "FATHOM_TURN_END\n"
+        "\n"
+        "The closing FATHOM_TURN_END must be at column 0 with no leading "
+        "whitespace, or bash will not recognize it as the heredoc "
+        "terminator. JSON-encode the user_input string normally (escape "
+        "\\\" \\\\ \\n per JSON rules); the heredoc protects against "
+        "shell escaping, JSON's own rules still apply inside the payload.\n"
         "\n"
         "At the top of your response, place the `score_block_str` field from "
         "update_graph.py's output JSON verbatim. Do not re-render the bar, do "
@@ -236,27 +247,48 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
             "prior session and set a pending flag). This message IS the new task. "
             "The hook ran init_session.py for you."
         )
+    # Build the example heredoc payload using json.dumps so the task string
+    # is properly JSON-encoded (apostrophes, quotes, etc. handled correctly
+    # inside the JSON string field). The heredoc itself then carries this
+    # payload to the script via stdin without any shell-escaping concerns.
+    example_payload = json.dumps({
+        "user_input": task,
+        "nodes": [{
+            "id": "n1", "dimension": "what", "node_type": "fact",
+            "content": "...", "raw_quote": "...",
+            "confidence": 0.9, "secondary_dimensions": [],
+        }],
+    })
+
     return (
         framing + " The state file is fresh, any prior session has been overwritten, "
         "this is the first turn.\n"
         "\n"
-        "Required BEFORE responding — call update_graph.py via Bash exactly like this "
-        "(replace the example nodes JSON with your real extraction; the script auto-tracks "
-        "turn count internally, do not pass turn-related flags):\n"
+        "Required BEFORE responding - call update_graph.py via Bash using a "
+        "heredoc with quoted delimiter so apostrophes, em-dashes, and other "
+        "punctuation in the user's text pass through literally (no shell "
+        "escaping needed):\n"
         "\n"
-        f'  python3 "{update_graph_path}" \\\n'
-        f'    --user-input "{task}" \\\n'
-        f'    --nodes \'[{{"id":"n1","dimension":"what","node_type":"fact",'
-        f'"content":"...","raw_quote":"...","confidence":0.9,"secondary_dimensions":[]}}]\'\n'
+        f"python3 \"{update_graph_path}\" <<'FATHOM_TURN_END'\n"
+        f"{example_payload}\n"
+        "FATHOM_TURN_END\n"
         "\n"
-        "Use the absolute script path above verbatim — do NOT substitute "
+        "The closing FATHOM_TURN_END must be at column 0 with no leading "
+        "whitespace (standard bash heredoc requirement). The payload above "
+        "shows one example node - replace the nodes array with your real "
+        "extraction for this turn. JSON-encode the user_input string normally "
+        "(escape \\\" \\\\ \\n per JSON rules); the heredoc protects against "
+        "shell escaping, JSON's own rules still apply inside the payload.\n"
+        "\n"
+        "Use the absolute script path above verbatim - do NOT substitute "
         "`${CLAUDE_PLUGIN_ROOT}/scripts/update_graph.py`, that env var is not "
         "exported to Bash-tool subprocesses and bash will mis-resolve the empty path.\n"
         "\n"
-        "**Valid flags are ONLY**: --user-input (required), --nodes (optional JSON array), "
-        "--task-type (optional, one of: thinking|creation|execution|learning|general). "
-        "Do NOT pass --turn, --turn-count, --session-id, or any other flag — the script "
-        "silently ignores them as a defensive measure but they're not part of the contract.\n"
+        "**Payload schema**: JSON object with `user_input` (string, required), "
+        "`nodes` (JSON array of node dicts), and optionally `task_type` (one of: "
+        "thinking|creation|execution|learning|general). The script auto-tracks "
+        "turn count internally - do NOT include turn / turn_count / session_id "
+        "fields.\n"
         "\n"
         "Response format (per SKILL.md three-part rhythm):\n"
         "- **At the very TOP**: print the `score_block_str` field from update_graph.py's "

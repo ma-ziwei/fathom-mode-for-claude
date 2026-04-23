@@ -159,8 +159,9 @@ def main() -> None:
     # hallucinating that flag name (semantically plausible) on first try.
     parser.add_argument(
         "--user-input", "--user-message",
-        dest="user_input", required=True,
-        help="The user's verbatim message. (--user-message accepted as alias.)",
+        dest="user_input", default=None,
+        help="The user's verbatim message. (--user-message accepted as alias. "
+             "Optional if a JSON payload is piped to stdin.)",
     )
     parser.add_argument("--nodes", default=None, help="JSON array of Node dicts emitted by Claude.")
     parser.add_argument("--task-type", default=None,
@@ -175,9 +176,41 @@ def main() -> None:
                         default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
+    # --- Optional stdin JSON payload (preferred path; overrides args) ---
+    # The hook reminder instructs Claude to invoke this script via a Bash
+    # heredoc with quoted delimiter (<<'FATHOM_TURN_END'), routing all
+    # user-derived text through stdin as a JSON object. This bypasses shell
+    # quoting entirely - apostrophes / em-dashes / dollar signs in the
+    # user's message no longer require escaping. CLI args remain supported
+    # for standalone debugging and --help discoverability.
+    stdin_payload = None
+    if not sys.stdin.isatty():
+        try:
+            raw = sys.stdin.read()
+            if raw.strip():
+                stdin_payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            print(f"stdin payload JSON parse failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    user_input = args.user_input
+    nodes_json = args.nodes
+    task_type = args.task_type
+    if isinstance(stdin_payload, dict):
+        user_input = stdin_payload.get("user_input", user_input)
+        if "nodes" in stdin_payload:
+            nodes_json = json.dumps(stdin_payload["nodes"])
+        task_type = stdin_payload.get("task_type", task_type)
+
+    if not user_input:
+        parser.error(
+            'user_input is required (via stdin JSON payload {"user_input": ...} '
+            'or --user-input arg)'
+        )
+
     state = require_active()  # exits 1 if no active session
 
-    user_input = args.user_input.strip()
+    user_input = user_input.strip()
     warnings = list(state.get("extraction_warnings", []))
 
     # --- Reconstruct the graph from persisted state ---
@@ -188,7 +221,7 @@ def main() -> None:
         graph.add_edge(Edge.from_dict(ed))
 
     # --- Parse Claude's extraction (or fall back to Day 1 stub) ---
-    new_nodes = _parse_nodes_arg(args.nodes, state.get("turn_count", 0), warnings)
+    new_nodes = _parse_nodes_arg(nodes_json, state.get("turn_count", 0), warnings)
     if not new_nodes:
         new_nodes = [_stub_fallback_node(user_input, state.get("turn_count", 0))]
 
@@ -219,8 +252,8 @@ def main() -> None:
     dialogue = list(state.get("dialogue", []))
     dialogue.append({"role": "user", "content": user_input})
 
-    if args.task_type:
-        state["task_type"] = args.task_type
+    if task_type:
+        state["task_type"] = task_type
 
     state.update({
         "turn_count": new_turn,
