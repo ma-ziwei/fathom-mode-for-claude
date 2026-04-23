@@ -43,7 +43,7 @@ Fathom Score
 If `score_pct >= 50`, after the question add a blank line then exactly:
 
 ```
-💡 *Ready to compile? Reply **fathom** to compile what we've understood into an action plan, or keep going to deepen the picture.*
+💡 *Ready to plan? Reply **plan** to compile what we've fathomed into an action plan, or keep fathoming to go deeper.*
 ```
 
 ## Extraction: `--nodes` JSON
@@ -91,7 +91,7 @@ Pass `--task-type` if you can categorize: `thinking` (decision/tradeoffs) / `cre
 
 ## Compile ceremony
 
-User says **`fathom`** alone, `compile`, or runs `/fathom-mode:fathom-compile`:
+User says "plan" / "compile" / runs `/fathom-mode:fathom-compile`:
 1. Call `compile_plan.py`. Present its 5-section output with framing *"Here's what I've fathomed from our conversation. Review carefully."*
 2. End with *"Reply 'approve' to proceed with this plan, or describe what to change."*
 3. On approve, execute per `task_type`, then call `exit_session.py`.
