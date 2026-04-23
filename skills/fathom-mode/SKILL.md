@@ -8,7 +8,7 @@ allowed-tools: Bash, Read, Write
 
 A planning session. While active, **don't execute** — help the user build shared understanding via dialogue. They compile to a plan, review, approve, then execution begins.
 
-The per-turn rhythm (three-part response, Score block placement, when to suggest compiling, how the compile + execute flow works) is delivered to you each turn by the `UserPromptSubmit` hook reminder, tailored to the current FSM state. This SKILL.md is the deeper-detail reference for node extraction discipline and tangential handling.
+The per-turn rhythm (three-part response, Score block placement, when to suggest compiling, how the compile + approve + execute flow works) is delivered to you each turn by the `UserPromptSubmit` hook reminder, tailored to the current FSM state. This SKILL.md is the deeper-detail reference for node extraction discipline and tangential handling.
 
 ## Extraction: `--nodes` JSON
 

@@ -96,7 +96,11 @@ def _emit(reminder_text: str | None) -> None:
 #   - Boundary counter-examples are KEPT where they narrow scope (e.g.,
 #     "plan a meeting" is not a compile trigger).
 #   - Vocabulary alignment with Claude Code: user-facing trigger words
-#     are `plan` (compile entry) and `execute` (post-plan run).
+#     are `plan` (compile entry) and `approve` (post-plan run). Note
+#     `execute` remains the engineering verb for Claude's action phase
+#     (e.g., "execute the plan via Edit/Write/Bash") — that role split
+#     mirrors Claude Code native plan mode's own split (Approve button
+#     -> system execution).
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +149,7 @@ def _build_in_session_reminder(state: dict) -> str:
         "  3. Draft a concrete action plan for the user's task, grounded in "
         "every section of the compiled intent. Do not introduce concerns "
         "absent from it.\n"
-        '  4. End your plan with: "Reply **execute** to run the plan, or '
+        '  4. End your plan with: "Reply **approve** to proceed with this plan, or '
         'describe what to change."\n'
         "\n"
         'Note: phrases like "plan a meeting" describe the session\'s content, '
@@ -171,7 +175,7 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
         "\n"
         "- If the user describes changes to the plan: revise the plan inline, "
         "grounded in the same compiled intent. Present the revised plan and "
-        'end with "Reply **execute** to run the plan, or describe what to '
+        'end with "Reply **approve** to proceed with this plan, or describe what to '
         'change." You remain in the approval-waiting state.\n'
         "\n"
         "- If the user expresses intent to cancel: call: "
@@ -179,7 +183,7 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
         "\n"
         "- If the user's message is unrelated to the plan: answer the question "
         'directly, then add: "Still awaiting your response on the plan — reply '
-        "**execute** to run, describe what to change, or use "
+        "**approve** to proceed, describe what to change, or use "
         '/fathom-mode:fathom-exit to cancel."\n'
         "\n"
         "- If the message is ambiguous: ask one clarifying question about which "

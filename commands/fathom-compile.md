@@ -13,6 +13,6 @@ Read its stdout as the compiled intent markdown — do NOT show this to the user
 
 Present the plan and end with:
 
-> Reply **execute** to run the plan, or describe what to change.
+> Reply **approve** to proceed with this plan, or describe what to change.
 
-(From here the hook's AWAITING_APPROVAL reminder takes over and manages the execute / change / cancel flow on subsequent turns. This slash command exists for users who prefer an explicit slash entry to compile; the conversational "plan" trigger from the PLAN_READY hook reminder produces the same state transition via the same `compile_plan.py` invocation, since `compile_plan.py` itself sets `state.awaiting_approval = True` regardless of entry path.)
+(From here the hook's AWAITING_APPROVAL reminder takes over and manages the approve / change / cancel flow on subsequent turns. This slash command exists for users who prefer an explicit slash entry to compile; the conversational "plan" trigger from the PLAN_READY hook reminder produces the same state transition via the same `compile_plan.py` invocation, since `compile_plan.py` itself sets `state.awaiting_approval = True` regardless of entry path.)
