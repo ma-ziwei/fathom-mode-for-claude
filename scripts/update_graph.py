@@ -127,6 +127,27 @@ def render_score_block(score_pct: int, score_delta: int) -> str:
     return f"Fathom Score\n{bar} {pct}% ({sign}{score_delta})"
 
 
+# Plan-readiness threshold + hint string. Single source of truth: the
+# 50% threshold lives in this one helper, NOT in the hook (hook used to
+# do `if state.score_pct >= 50` dispatch but that produced a one-turn
+# lag because hook fires pre-update_graph; now the judgment lives next
+# to the production of the score, eliminating the lag).
+PLAN_READY_THRESHOLD = 50
+PLAN_HINT_TEXT = (
+    "💡 Ready to plan? Reply **plan** to compile this into an action plan."
+)
+
+
+def render_plan_hint(score_pct: int) -> str:
+    """
+    Return the plan-hint string when score has crossed the threshold,
+    else empty string. Hook reminder instructs Claude to append this
+    string verbatim at the end of the response if non-empty — no LLM
+    threshold judgment needed.
+    """
+    return PLAN_HINT_TEXT if int(score_pct) >= PLAN_READY_THRESHOLD else ""
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -233,11 +254,13 @@ def main() -> None:
     )
 
     score_block_str = render_score_block(new_score_pct, score_delta)
+    plan_hint_str = render_plan_hint(new_score_pct)
 
     sys.stdout.write(json.dumps({
         "score_pct": new_score_pct,
         "score_delta": score_delta,
         "score_block_str": score_block_str,
+        "plan_hint_str": plan_hint_str,
         "surface_pct": state["score_breakdown"]["surface_pct"],
         "depth_pct": state["score_breakdown"]["depth_pct"],
         "bedrock_pct": state["score_breakdown"]["bedrock_pct"],

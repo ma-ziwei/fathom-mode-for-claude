@@ -27,22 +27,23 @@ Four prompt-shape behaviors at the top level:
            reminder. Mirrors Behavior 2 but triggered from a user message
            instead of a slash command.
      b. State has a real active session (session_id + task)
-        -> Dispatch by FSM state into one of three reminders:
+        -> Dispatch by FSM state into one of two reminders:
             - awaiting_approval=True -> AWAITING_APPROVAL reminder
               (do not call update_graph; judge user's response to the plan)
-            - score_pct >= 50         -> PLAN_READY reminder
-              (in-session three-part + Score block + plan hint + compile-
-              intent recognition)
-            - otherwise               -> IDLE reminder
-              (in-session three-part + Score block, NO plan/compile content)
+            - otherwise               -> IN_SESSION reminder
+              (three-part + Score block + data-driven plan hint via
+              update_graph.py's plan_hint_str field + compile-intent
+              recognition always-on)
      c. Neither
         -> Self-gate (no injection — plugin installed but no Fathom
            activity in progress).
 
-The score-threshold check for PLAN_READY lives in this Python dispatch,
-NOT in Claude's reasoning. compile_plan.py mutates state.awaiting_approval
-on invocation, so both conversational ("plan") and slash-command entry
-paths converge on the same AWAITING_APPROVAL state.
+The score-threshold check for plan-readiness lives in update_graph.py
+(co-located with score production), not in this hook. The hook's only
+state dispatch is awaiting_approval Y/N. compile_plan.py mutates
+state.awaiting_approval on invocation, so both conversational ("plan")
+and slash-command entry paths converge on the same AWAITING_APPROVAL
+state.
 
 Always exits 0 to avoid blocking the user prompt on hook errors.
 """
@@ -99,12 +100,27 @@ def _emit(reminder_text: str | None) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _build_idle_reminder(state: dict) -> str:
-    """In-session reminder for IDLE state (active session, score < 50)."""
-    score_pct = state.get("score_pct", 0)
+def _build_in_session_reminder(state: dict) -> str:
+    """
+    Single in-session reminder for active sessions where awaiting_approval is False.
+
+    Plan-readiness is now data-driven: update_graph.py emits a `plan_hint_str`
+    field (empty when score < threshold; the literal hint when score >=
+    threshold). This reminder instructs Claude to append that string verbatim
+    if non-empty — no LLM threshold judgment, no hook-side score dispatch,
+    no one-turn lag (the hint appears the same turn the score crosses).
+
+    The compile-trigger sub-flow (user says "plan" / "compile") is always
+    present, not gated by score. A user can choose to compile at any score;
+    `compile_plan.py` runs over whatever graph exists and the resulting
+    plan is naturally sparse if the session is shallow — that's normal UX
+    feedback, not something to prevent. Consistent with
+    `/fathom-mode:fathom-compile` slash command which was already always-on.
+    """
     update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
+    compile_plan_path = (_scripts_dir() / "compile_plan.py").as_posix()
     return (
-        f"You are in an active Fathom session. Score: {score_pct}%.\n"
+        "You are in an active Fathom session.\n"
         "\n"
         "Format your response in three parts: a short answer to the user's "
         "message, one insight about their underlying intent, and one question "
@@ -118,32 +134,8 @@ def _build_idle_reminder(state: dict) -> str:
         "update_graph.py's output JSON verbatim. Do not re-render the bar, do "
         "not modify symbols, do not add embellishment.\n"
         "\n"
-        "(Refer to SKILL.md for --nodes JSON schema, dimension definitions, "
-        "and extraction discipline.)"
-    )
-
-
-def _build_plan_ready_reminder(state: dict) -> str:
-    """In-session reminder for PLAN_READY state (active session, score >= 50)."""
-    score_pct = state.get("score_pct", 0)
-    update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
-    compile_plan_path = (_scripts_dir() / "compile_plan.py").as_posix()
-    return (
-        f"You are in an active Fathom session. Score: {score_pct}%.\n"
-        "\n"
-        "Format your response in three parts: a short answer to the user's "
-        "message, one insight about their underlying intent, and one question "
-        "that probes a dimension they have not yet covered.\n"
-        "\n"
-        "Before responding, call:\n"
-        f'  python3 "{update_graph_path}" --user-input "<user\'s verbatim message>" '
-        "--nodes '<your extracted nodes as JSON array>'\n"
-        "\n"
-        "At the top of your response, place the `score_block_str` field from "
-        "update_graph.py's output JSON verbatim.\n"
-        "\n"
-        "At the end of your response, append verbatim:\n"
-        "💡 Ready to plan? Reply **plan** to compile this into an action plan.\n"
+        "If the `plan_hint_str` field from update_graph.py's output JSON is "
+        "non-empty, append it verbatim at the end of your response.\n"
         "\n"
         "If the user's message expresses intent to compile this session into a "
         "plan, do NOT call update_graph.py this turn. Instead:\n"
@@ -196,12 +188,17 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
 
 
 def _build_active_session_reminder(state: dict) -> str:
-    """Dispatch in-session reminder by FSM state."""
+    """
+    Dispatch in-session reminder: AWAITING_APPROVAL vs IN_SESSION.
+
+    Score-based PLAN_READY/IDLE split is gone — plan-readiness is now
+    data-driven via update_graph.py's `plan_hint_str` field, judged at
+    the moment the score is produced (no one-turn lag) and instructed
+    inside the IN_SESSION reminder body.
+    """
     if state.get("awaiting_approval", False):
         return _build_awaiting_approval_reminder(state)
-    if int(state.get("score_pct", 0)) >= 50:
-        return _build_plan_ready_reminder(state)
-    return _build_idle_reminder(state)
+    return _build_in_session_reminder(state)
 
 
 def _build_session_init_reminder(task: str, *, source: str) -> str:
