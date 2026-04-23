@@ -6,9 +6,9 @@
 
 Fathom Mode is a **planning session mode** for AI interactions. While it is active, Claude pauses execution and helps you build shared understanding through a deliberate three-part dialogue:
 
-- **Short answer** to what you just said
-- **One insight** — an observation or tension worth noticing at the current depth of understanding
-- **One targeted follow-up question** — advancing exactly one dimension of understanding
+- **Understanding restate** — Claude reflects back what it has taken from your message, including any assumptions, so you can catch misinterpretations early
+- **One insight** — supplements a missing dimension, clarifies an ambiguity, corrects a technical misconception, or reframes your angle
+- **One targeted follow-up question** — advancing one dimension of understanding the dialogue has not yet covered
 
 A **Fathom Score** climbs visibly with each in-session turn — fast initial gain, exponentially diminishing returns, asymptotic to (but never reaching) 100%. When you're ready, you say `/fathom-plan` and the session is rendered into a plan you can review, refine, and approve before any execution begins.
 

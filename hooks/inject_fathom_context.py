@@ -106,6 +106,12 @@ def _emit(reminder_text: str | None) -> None:
 #     verb ("execute the plan via Edit/Write/Bash"). That role split
 #     mirrors Claude Code native plan mode (Approve button -> system
 #     execution).
+#   - The four insight-style names below (supplement / clarify / correct /
+#     reframe) appearing in the IN_SESSION + session-init reminders ARE an
+#     enumeration, but a different kind from the trigger-word lists this
+#     principle bans. They are fathom's internal insight-type vocabulary -
+#     style names Claude picks among, not user-input trigger words to
+#     match. Authorized per the three-part-response unification work.
 # ---------------------------------------------------------------------------
 
 
@@ -131,9 +137,16 @@ def _build_in_session_reminder(state: dict) -> str:
     return (
         "You are in an active Fathom session.\n"
         "\n"
-        "Format your response in three parts: a short answer to the user's "
-        "message, one insight about their underlying intent, and one question "
-        "that probes a dimension they have not yet covered.\n"
+        "Format your response in three parts:\n"
+        "  1. Restate your understanding of the user's intent, surfacing any "
+        "assumptions you have made, so the user can catch misinterpretations "
+        "early.\n"
+        "  2. One insight that supplements a missing dimension, clarifies an "
+        "ambiguity, corrects a technical misconception, or reframes the user's "
+        "angle. 2-4 sentences; let the user's complexity set the length within "
+        "that range.\n"
+        "  3. One question that advances a missing dimension (use "
+        "update_graph.py's `next_target_dimension` field as the target).\n"
         "\n"
         "Before responding, call via Bash. Use a heredoc with quoted "
         "delimiter so apostrophes, em-dashes, and other punctuation in "
@@ -300,10 +313,13 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
         "JSON output VERBATIM. Do NOT re-render — the script renders the 2-line "
         "`Fathom Score\\n{bar} NN% (+N)` block already. No Surface/Depth/Bedrock rows, "
         "no Turn/dims row, no symbol substitution.\n"
-        "- Blank line, then acknowledge entering Fathom Mode and restate the task "
-        "in the user's own framing.\n"
-        "- Provide your insight (one paragraph).\n"
-        "- Ask exactly one targeted orientation question.\n"
+        "- Blank line, then restate your understanding of the task — including any "
+        "assumptions you have made — so the user can catch misinterpretations early. "
+        "Acknowledge entering Fathom Mode in the same paragraph.\n"
+        "- One insight that supplements a missing dimension, clarifies an ambiguity, "
+        "corrects a technical misconception, or reframes the user's angle. 2-4 "
+        "sentences; let the user's complexity set the length within that range.\n"
+        "- One question that advances a missing dimension.\n"
         "\n"
         "Do NOT call init_session.py — already done by the hook.\n"
         "Do NOT treat this as a continuation of any prior session — the prior state has been "
