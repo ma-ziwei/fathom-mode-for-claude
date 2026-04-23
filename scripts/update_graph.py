@@ -2,20 +2,24 @@
 """
 Per-turn graph update + Score recomputation.
 
-Day 2 reality: real Score formula via _scoring.compute_fathom_breakdown over
-Claude-emitted nodes. Falls back to Day 1 stub behavior if --nodes is absent
-(backward-compat during SKILL.md rollout).
+Phase 2+3 reality: full Intent Graph operations via _graph.IntentGraph
+(CFP downgrade enforced at add_edge), causal marker detection on user
+input via _causal (USER_EXPLICIT CAUSAL edges only), real next-target
+dimension via _dimensions.find_target_dimension. Score still computed
+by _scoring.compute_fathom_breakdown over the graph's node list.
 
 CLI:
     update_graph.py --user-input "<verbatim user message>"
                     [--nodes '<JSON array of node dicts>']
                     [--task-type thinking|creation|execution|learning|general]
 
-`session_id` is read from the state file, not from CLI (Lawrence's spec
-adjustment from Day 1).
+Defensive arg aliases (silently accepted for LLM hallucination cases):
+    --user-message  alias for --user-input
+    --turn / --turn-count / --session-id  silently ignored
 
-Day 3 will add: real IntentGraph operations (CFP edge downgrade, dedup).
-Day 4 will add: causal marker detection wired into verified_causal_pairs.
+Output JSON now includes a pre-rendered `score_block_str` (2-line
+`Fathom Score\\n{bar} {pct}% ({+|-}delta)`) for downstream callers
+to use verbatim — eliminates LLM rendering drift.
 """
 
 from __future__ import annotations
@@ -26,16 +30,15 @@ import sys
 import uuid
 
 from session_state import require_active, save_state
-from _models import Node
+from _models import Edge, Node
 from _scoring import compute_fathom_breakdown
+from _graph import IntentGraph
+from _dimensions import find_target_dimension
+from _causal import detect_causal_markers, match_markers_to_nodes
 
 
-# ---------------------------------------------------------------------------
-# 6W cycle order — used by Day 1 stub fallback only.
-# Day 3 swaps in real find_target_dimension(graph) from _dimensions.py.
-# ---------------------------------------------------------------------------
+# Day 1 stub fallback cycle — used only when --nodes is absent
 _DIMENSION_CYCLE = ["what", "why", "how", "who", "when", "where"]
-_ALL_DIMS = ["who", "what", "why", "when", "where", "how"]
 
 
 # ---------------------------------------------------------------------------
@@ -44,11 +47,7 @@ _ALL_DIMS = ["who", "what", "why", "when", "where", "how"]
 
 
 def _truncate_at_word_boundary(text: str, limit: int = 240) -> str:
-    """
-    Word-boundary truncation with ellipsis.
-    Used only on stub-fallback content (when Claude doesn't emit --nodes).
-    For Claude-emitted node content, store as-is — Claude controls length.
-    """
+    """Word-boundary truncation with ellipsis. Used only on stub-fallback content."""
     text = text.strip()
     if len(text) <= limit:
         return text
@@ -61,7 +60,7 @@ def _truncate_at_word_boundary(text: str, limit: int = 240) -> str:
 def _prefix_node_ids(nodes: list[Node], turn_count: int) -> list[Node]:
     """
     Prefix Claude-emitted ids with turn number to avoid collisions across turns.
-    Claude emits 'n1', 'n2', etc. fresh each turn; we store as 't3_n1', 't3_n2'.
+    Claude emits 'n1', 'n2' fresh each turn; we store as 't3_n1', 't3_n2'.
     Already-prefixed ids pass through unchanged (idempotent).
     """
     prefix = f"t{turn_count + 1}_"
@@ -72,7 +71,7 @@ def _prefix_node_ids(nodes: list[Node], turn_count: int) -> list[Node]:
 
 
 def _stub_fallback_node(user_input: str, turn_count: int) -> Node:
-    """Day 1 stub fallback: cycle dim, truncate content. Used when --nodes absent."""
+    """Day 1 stub fallback — used when Claude doesn't pass --nodes."""
     new_turn = turn_count + 1
     dim = _DIMENSION_CYCLE[(new_turn - 1) % len(_DIMENSION_CYCLE)]
     return Node(
@@ -83,14 +82,6 @@ def _stub_fallback_node(user_input: str, turn_count: int) -> Node:
         node_type="fact",
         confidence=0.5,
     )
-
-
-def _next_target_dimension(active_dims: list[str]) -> str:
-    """Day 2 simple heuristic: first 6W dim not yet active. Day 3 swaps in real priority logic."""
-    for dim in _ALL_DIMS:
-        if dim not in active_dims:
-            return dim
-    return "why"  # all 6 covered → keep deepening WHY
 
 
 def _parse_nodes_arg(nodes_arg: str | None, turn_count: int, warnings: list) -> list[Node]:
@@ -112,6 +103,30 @@ def _parse_nodes_arg(nodes_arg: str | None, turn_count: int, warnings: list) -> 
         return []
 
 
+def render_score_block(score_pct: int, score_delta: int) -> str:
+    """
+    Pre-render the 2-line Score block. Output format:
+
+        Fathom Score
+        ██████░░░░░░░░ NN% (+N)
+
+    Top bar is exactly 14 chars (`█` filled, `░` empty). The delta is
+    always shown with explicit sign (+5 / -3 / +0).
+
+    SKILL.md instructs Claude to use this string verbatim — no
+    self-rendering, no embellishment, no symbol substitution. Pre-rendering
+    here eliminates the LLM-side drift we observed earlier (Claude
+    swapping `█/░` for `▓/░`, condensing 3 sub-rows to 1, adding `━`
+    decoration, etc.).
+    """
+    pct = max(0, min(100, int(score_pct)))
+    bar_fill = round(pct / 100 * 14)
+    bar_fill = max(0, min(14, bar_fill))
+    bar = "\u2588" * bar_fill + "\u2591" * (14 - bar_fill)
+    sign = "+" if score_delta >= 0 else ""
+    return f"Fathom Score\n{bar} {pct}% ({sign}{score_delta})"
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -120,9 +135,7 @@ def _parse_nodes_arg(nodes_arg: str | None, turn_count: int, warnings: list) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Update Intent Graph after a user turn.")
     # Accept --user-message as a defensive alias — Claude has been observed
-    # hallucinating that flag name (semantically plausible) on first try, then
-    # erroring + retrying. Aliasing it costs one extra option string and avoids
-    # the round-trip + visible error in the demo.
+    # hallucinating that flag name (semantically plausible) on first try.
     parser.add_argument(
         "--user-input", "--user-message",
         dest="user_input", required=True,
@@ -133,9 +146,8 @@ def main() -> None:
                         choices=["thinking", "creation", "execution", "learning", "general"],
                         help="Optional task-type classification.")
     # Defensive: silently accept --turn / --turn-count / --session-id flags
-    # Claude has been observed hallucinating. The script tracks these
-    # internally from state file; the passed values are ignored. Better
-    # than `unrecognized arguments` exit 2 mid-demo.
+    # that Claude has been observed hallucinating. Script tracks these
+    # internally from the state file; passed values are ignored.
     parser.add_argument("--turn", "--turn-count", dest="_ignored_turn",
                         default=None, help=argparse.SUPPRESS)
     parser.add_argument("--session-id", dest="_ignored_session_id",
@@ -147,31 +159,47 @@ def main() -> None:
     user_input = args.user_input.strip()
     warnings = list(state.get("extraction_warnings", []))
 
-    # Parse Claude's extraction (or fall back to stub)
+    # --- Reconstruct the graph from persisted state ---
+    graph = IntentGraph()
+    for nd in state.get("nodes", []):
+        graph.add_node(Node.from_dict(nd))
+    for ed in state.get("edges", []):
+        graph.add_edge(Edge.from_dict(ed))
+
+    # --- Parse Claude's extraction (or fall back to Day 1 stub) ---
     new_nodes = _parse_nodes_arg(args.nodes, state.get("turn_count", 0), warnings)
     if not new_nodes:
-        # Stub fallback: backward-compat with Day 1 SKILL.md
         new_nodes = [_stub_fallback_node(user_input, state.get("turn_count", 0))]
 
-    # Append nodes + dialogue, increment turn
-    nodes_dicts = list(state.get("nodes", []))
-    nodes_dicts.extend(node.to_dict() for node in new_nodes)
+    for n in new_nodes:
+        graph.add_node(n)
 
+    # --- Causal marker detection on user input → USER_EXPLICIT CAUSAL edges ---
+    detections = detect_causal_markers(user_input)
+    purpose_markers = [d for d in detections if d["type"] == "purpose"]
+    causal_edges = match_markers_to_nodes(detections, graph.get_all_nodes())
+    for e in causal_edges:
+        graph.add_edge(e)  # CFP downgrade enforced inside add_edge
+
+    # Log purpose markers separately (CFP discipline: never edged)
+    if purpose_markers:
+        existing_purpose_log = list(state.get("purpose_markers_log", []))
+        existing_purpose_log.extend(purpose_markers)
+        state["purpose_markers_log"] = existing_purpose_log
+
+    # --- Score over the updated graph ---
+    verified_causal = state.get("verified_causal_pairs", {})  # later wires real verified pairs
+    breakdown = compute_fathom_breakdown(graph.get_all_nodes(), verified_causal)
+    new_score_pct = round(breakdown.fathom_score * 100)
+    score_delta = new_score_pct - int(state.get("score_pct", 0))
+
+    # --- Persist updated state ---
+    new_turn = int(state.get("turn_count", 0)) + 1
     dialogue = list(state.get("dialogue", []))
     dialogue.append({"role": "user", "content": user_input})
 
-    new_turn = int(state.get("turn_count", 0)) + 1
-
     if args.task_type:
         state["task_type"] = args.task_type
-
-    # Recompute real Score over all nodes ever extracted in this session
-    all_nodes = [Node.from_dict(d) for d in nodes_dicts]
-    verified_causal = state.get("verified_causal_pairs", {})  # Day 4 wires real pairs
-    breakdown = compute_fathom_breakdown(all_nodes, verified_causal)
-
-    new_score_pct = round(breakdown.fathom_score * 100)
-    score_delta = new_score_pct - int(state.get("score_pct", 0))
 
     state.update({
         "turn_count": new_turn,
@@ -181,25 +209,35 @@ def main() -> None:
             "depth_pct": round(breakdown.depth_penetration * 100),
             "bedrock_pct": round(breakdown.bedrock_grounding * 100),
         },
-        "nodes": nodes_dicts,
+        "nodes": [n.to_dict() for n in graph.get_all_nodes()],
+        "edges": [e.to_dict() for e in graph.get_all_edges()],
         "dialogue": dialogue,
         "extraction_warnings": warnings,
     })
     save_state(state)
 
-    # Compute active dims + next target for the response JSON
-    dims_active = sorted({n.dimension for n in all_nodes})
-    next_target = _next_target_dimension(dims_active)
+    # --- Compute next-target + summary for the response JSON ---
+    next_target = find_target_dimension(graph)
+    dims_active = sorted({n.dimension for n in graph.get_all_nodes() if n.dimension})
 
     summary_dims = ", ".join(d.upper() for d in dims_active) or "(none yet)"
-    graph_summary = (
-        f"{len(all_nodes)} node{'s' if len(all_nodes) != 1 else ''} across {summary_dims}. "
-        "No causal edges yet (CFP wires Day 4)."
+    edge_count = graph.edge_count()
+    causal_count = sum(
+        1 for e in graph.get_all_edges()
+        if e.relation_type == "causal"
     )
+    graph_summary = (
+        f"{graph.node_count()} node{'s' if graph.node_count() != 1 else ''}, "
+        f"{edge_count} edge{'s' if edge_count != 1 else ''} "
+        f"({causal_count} user-explicit causal) across {summary_dims}."
+    )
+
+    score_block_str = render_score_block(new_score_pct, score_delta)
 
     sys.stdout.write(json.dumps({
         "score_pct": new_score_pct,
         "score_delta": score_delta,
+        "score_block_str": score_block_str,
         "surface_pct": state["score_breakdown"]["surface_pct"],
         "depth_pct": state["score_breakdown"]["depth_pct"],
         "bedrock_pct": state["score_breakdown"]["bedrock_pct"],
@@ -209,6 +247,8 @@ def main() -> None:
         "graph_summary": graph_summary,
         "task_type": state.get("task_type", "general"),
         "extraction_warnings": warnings,
+        "causal_edges_added": len(causal_edges),
+        "purpose_markers_logged": len(purpose_markers),
     }, ensure_ascii=False))
 
 

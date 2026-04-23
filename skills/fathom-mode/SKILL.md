@@ -29,18 +29,16 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_graph.py \
   [--task-type thinking|creation|execution|learning|general]
 ```
 
-The script returns `score_pct`, `score_delta`, `surface_pct`, `depth_pct`, `bedrock_pct`, `dimensions_active`, `next_target_dimension`, `turn_count`. Use these in the Score block.
+The script returns a JSON dict including `score_block_str` (a pre-rendered 2-line Score block) plus the raw values: `score_pct`, `score_delta`, `surface_pct`, `depth_pct`, `bedrock_pct`, `dimensions_active`, `next_target_dimension`, `turn_count`, `graph_summary`.
 
-**Present the Score block FIRST** — at the very top of your response, before the short answer / insight / question. The block is exactly two lines:
+**Present the `score_block_str` value FIRST**, verbatim, at the very top of your response. Do NOT re-render the bar yourself. Do NOT substitute symbols (no `▓` for `█`, no `━` decorations). Do NOT add Surface/Depth/Bedrock breakdown rows. Do NOT add Turn / active dims rows. The script renders exactly two lines like:
 
 ```
 Fathom Score
 ██████░░░░░░░░ 52% (+17)
 ```
 
-Top bar 14 chars (`█`/`░`). The number is `score_pct`%, the parenthetical is the `score_delta` with explicit sign (e.g., `+17`, `-3`, `+0`). Do NOT add Surface/Depth/Bedrock breakdown rows. Do NOT add Turn / active dims rows. Just the two lines above.
-
-After the Score block, blank line, then your short answer / insight / question.
+— use that string as-is. After the Score block, blank line, then your short answer / insight / question.
 
 If `score_pct >= 50`, after the question add a blank line then exactly:
 
