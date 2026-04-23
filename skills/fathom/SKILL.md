@@ -1,5 +1,5 @@
 ---
-name: fathom-mode
+name: fathom
 description: Enter Fathom Mode — a planning session where Claude pauses execution and helps the user build shared understanding through structured dialogue. Activate this whenever the user says "fathom", "fathom mode", "let's plan this", or asks to think through a complex task before acting. Stay in Fathom Mode until the user plans or exits.
 allowed-tools: Bash, Read, Write
 ---

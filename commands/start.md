@@ -1,5 +1,5 @@
 ---
-description: Enter Fathom Mode with a task. Bare /fathom-mode:fathom shows status only via hook (no LLM).
+description: Enter Fathom Mode with a task. Bare /fathom:start shows status only via hook (no LLM).
 argument-hint: <task description>
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
@@ -21,6 +21,6 @@ Look for a system reminder above starting with `[Fathom Mode: new session initia
 
 If `$ARGUMENTS` is empty when this body runs, respond with this exact text and stop:
 
-> Fathom Mode is ready. To start a session, run `/fathom-mode:fathom <your task>`.
+> Fathom Mode is ready. To start a session, run `/fathom:start <your task>`.
 
 Do NOT call any other tool.

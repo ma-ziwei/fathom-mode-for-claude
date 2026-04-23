@@ -37,7 +37,7 @@ def _state_dir() -> Path:
     init_session subprocess would write to the PLUGIN_DATA path while
     Claude's Bash-tool calls to update_graph.py would write to
     ~/.fathom-mode/. State files would split, hook reads stale state
-    from one path while Bash writes to another, and bare /fathom-mode:fathom
+    from one path while Bash writes to another, and bare /fathom:start
     appears to "wipe" but the next message resurrects the old session.
 
     By forcing ~/.fathom-mode/ everywhere (hook, hook subprocess, Bash
@@ -102,7 +102,7 @@ def require_active() -> dict:
             "error": "no_active_session",
             "message": (
                 "No active Fathom Mode session. "
-                "Use the /fathom command to start one."
+                "Use the /fathom:start command to start one."
             ),
         }))
         sys.exit(1)
@@ -121,7 +121,7 @@ def require_active() -> dict:
 #                              exit 0. Use this before reading the state file
 #                              so callers don't have to guess between
 #                              ${CLAUDE_PLUGIN_DATA} and ~/.fathom-mode/.
-# Used by commands/fathom.md.
+# Used by commands/start.md.
 # ---------------------------------------------------------------------------
 
 

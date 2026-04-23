@@ -4,20 +4,20 @@ UserPromptSubmit hook for the Fathom Mode plugin.
 
 Four prompt-shape behaviors at the top level:
 
-  1. Prompt is exactly `/fathom-mode:fathom` (no args)
+  1. Prompt is exactly `/fathom:start` (no args)
      -> Hook overwrites the state file with a pending-new-task stub
         ("clean, atomic, leave-no-residue" semantics: prior session is
         wiped immediately). Then block + "Fathom Mode is ready." No LLM.
         The next plain user message will become the new task (Behavior 4).
 
-  2. Prompt starts with `/fathom-mode:fathom ` (args present)
+  2. Prompt starts with `/fathom:start ` (args present)
      -> Hook runs init_session.py --task "<args>" via subprocess (creates
         a fresh session, overwriting any prior state including pending
         stubs from Behavior 1) AND injects a session-init reminder telling
         the LLM what to do (first-turn extraction + three-part response).
 
-  3. Prompt starts with `/fathom-mode:` (any other plugin slash command,
-     incl. /fathom-mode:fathom-status / -plan / -exit)
+  3. Prompt starts with `/fathom:` (any other plugin slash command,
+     incl. /fathom:status / :plan / :exit)
      -> Skip injection, let the slash command's .md body drive behavior.
 
   4. Any other prompt (normal user message)
@@ -64,7 +64,7 @@ except (AttributeError, OSError):
     pass
 
 
-_FATHOM_ENTRY = "/fathom-mode:fathom"
+_FATHOM_ENTRY = "/fathom:start"
 
 
 def _emit(reminder_text: str | None) -> None:
@@ -130,7 +130,7 @@ def _build_in_session_reminder(state: dict) -> str:
     `compile_plan.py` runs over whatever graph exists and the resulting
     plan is naturally sparse if the session is shallow — that's normal UX
     feedback, not something to prevent. Consistent with
-    `/fathom-mode:fathom-plan` slash command which was already always-on.
+    `/fathom:plan` slash command which was already always-on.
     """
     update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
     compile_plan_path = (_scripts_dir() / "compile_plan.py").as_posix()
@@ -256,12 +256,12 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
         framing = (
             f'[Fathom Mode: new session initialized for task "{task}"]\n'
             "The UserPromptSubmit hook ran init_session.py for you when you saw "
-            f"`/fathom-mode:fathom <task>`."
+            f"`/fathom:start <task>`."
         )
     else:  # source == "pending"
         framing = (
             f'[Fathom Mode: pending-new-task consumed -> fresh session for "{task}"]\n'
-            "The user previously typed bare /fathom-mode:fathom (which wiped any "
+            "The user previously typed bare /fathom:start (which wiped any "
             "prior session and set a pending flag). This message IS the new task. "
             "The hook ran init_session.py for you."
         )
@@ -415,7 +415,7 @@ def main() -> None:
         payload = {}
     prompt_text = (payload.get("prompt") or "").strip()
 
-    # Behavior 1: bare `/fathom-mode:fathom` -> wipe state to pending stub
+    # Behavior 1: bare `/fathom:start` -> wipe state to pending stub
     # + instant block + "Fathom Mode is ready." Old session is discarded
     # immediately; next plain user message becomes the new task.
     if prompt_text == _FATHOM_ENTRY:
@@ -426,9 +426,9 @@ def main() -> None:
         }))
         sys.exit(0)
 
-    # Behavior 2: `/fathom-mode:fathom <task>` (args present) ->
+    # Behavior 2: `/fathom:start <task>` (args present) ->
     # hook runs init_session.py + injects reminder. Trailing space
-    # distinguishes args from sibling commands like /fathom-mode:fathom-status.
+    # distinguishes args from sibling commands like /fathom:status.
     if prompt_text.startswith(_FATHOM_ENTRY + " "):
         task = prompt_text[len(_FATHOM_ENTRY) + 1:].strip()
         if task and _try_run_init_session(task):
@@ -436,8 +436,8 @@ def main() -> None:
         # Fall through to skip injection if task empty or init failed.
         sys.exit(0)
 
-    # Behavior 3: other /fathom-mode:* slash commands -> skip injection.
-    if prompt_text.startswith("/fathom-mode:"):
+    # Behavior 3: other /fathom:* slash commands -> skip injection.
+    if prompt_text.startswith("/fathom:"):
         sys.exit(0)
 
     # Behavior 4: normal user prompt -- depends on state.

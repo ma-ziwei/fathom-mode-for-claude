@@ -2,7 +2,7 @@
 """
 Render the active Fathom session as user-facing markdown.
 
-Output goes to stdout; the /fathom-status command presents it verbatim.
+Output goes to stdout; the /fathom:status command presents it verbatim.
 Day 1: bar chart + dimension counts + brief dialogue summary.
 Day 2+: richer graph rendering once real edges/causal relationships exist.
 """
@@ -80,7 +80,7 @@ def main() -> None:
             preview = content[:80] + ("…" if len(content) > 80 else "")
             lines.append(f"{i}. {preview}")
     lines.append("")
-    lines.append("_Commands: `/fathom-plan` to plan · `/fathom-exit` to leave_")
+    lines.append("_Commands: `/fathom:plan` to plan · `/fathom:exit` to leave_")
     lines.append("")
 
     sys.stdout.write("\n".join(lines))

@@ -35,7 +35,7 @@ Understanding has structure. Now look for **causal relationships** the user has 
 
 Enough understanding for a useful plan. Signal readiness:
 
-- In your response, mention that the session is in plan-ready territory and the user could `/fathom-plan` if ready.
+- In your response, mention that the session is in plan-ready territory and the user could `/fathom:plan` if ready.
 - Don't push them to plan — let them choose. Some users want to go deeper before committing.
 - Score gain very small (1–4% typical) and may plateau. Asymptote behavior is correct, not a bug.
 
@@ -43,4 +43,4 @@ Enough understanding for a useful plan. Signal readiness:
 
 - **First turn jumps fast.** The opening user message is dense with signal — Score may leap from 0 to 50%+ in a single turn. This is honest: a first sentence carries a lot of dimensional content.
 - **Tangential turns are NOT scored.** If you correctly handled an off-topic question, the Score does not change for that turn (the script wasn't called). The user sees no Score block on tangential turns either.
-- **Score is not a stopping rule.** Planning is always user-triggered via `/fathom-plan`. Never auto-plan.
+- **Score is not a stopping rule.** Planning is always user-triggered via `/fathom:plan`. Never auto-plan.

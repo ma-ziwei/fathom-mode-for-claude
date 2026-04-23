@@ -1,6 +1,6 @@
 # Plan Format
 
-The plan produced by `/fathom-plan` MUST contain these five sections, in this order. The Day 1 stub fills them with placeholder content; Day 4 replaces the stub with the real Compiler module that draws from the Intent Graph.
+The plan produced by `/fathom:plan` MUST contain these five sections, in this order. The Day 1 stub fills them with placeholder content; Day 4 replaces the stub with the real Compiler module that draws from the Intent Graph.
 
 ---
 
