@@ -80,7 +80,7 @@ def main() -> None:
             preview = content[:80] + ("…" if len(content) > 80 else "")
             lines.append(f"{i}. {preview}")
     lines.append("")
-    lines.append("_Commands: `/fathom-plan` to draft a plan · `/fathom-exit` to leave the session_")
+    lines.append("_Commands: `/fathom-plan` to plan · `/fathom-exit` to leave_")
     lines.append("")
 
     sys.stdout.write("\n".join(lines))

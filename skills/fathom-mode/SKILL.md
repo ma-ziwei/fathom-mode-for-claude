@@ -1,14 +1,14 @@
 ---
 name: fathom-mode
-description: Enter Fathom Mode — a planning session where Claude pauses execution and helps the user build shared understanding through structured dialogue. Activate this whenever the user says "fathom", "fathom mode", "let's plan this", or asks to think through a complex task before acting. Stay in Fathom Mode until the user drafts a plan or exits.
+description: Enter Fathom Mode — a planning session where Claude pauses execution and helps the user build shared understanding through structured dialogue. Activate this whenever the user says "fathom", "fathom mode", "let's plan this", or asks to think through a complex task before acting. Stay in Fathom Mode until the user plans or exits.
 allowed-tools: Bash, Read, Write
 ---
 
 # Fathom Mode
 
-A planning session. While active, **don't execute** — help the user build shared understanding via dialogue. They draft a plan, review it, approve, then execution begins.
+A planning session. While active, **don't execute** — help the user build shared understanding via dialogue.
 
-The per-turn rhythm (three-part response, Score block placement, when to suggest drafting a plan, how the plan + approve + execute flow works) is delivered to you each turn by the `UserPromptSubmit` hook reminder, tailored to the current FSM state. This SKILL.md is the deeper-detail reference for node extraction discipline and tangential handling.
+The per-turn rhythm (three-part response, Score block placement, when to suggest the plan step, how the plan + approve + reject + execute flow works) is delivered to you each turn by the `UserPromptSubmit` hook reminder, tailored to the current FSM state. This SKILL.md is the deeper-detail reference for node extraction discipline and tangential handling.
 
 ## Extraction: `--nodes` JSON
 
@@ -49,7 +49,7 @@ If the user's message is clearly unrelated to the active task:
 3. **Do NOT call update_graph.py. Do NOT show the Score block.**
 4. End with: `(Fathom session unaffected, score still N%. Ready when you want to return to <current topic>.)`
 
-(This general tangential handling is for ordinary in-session turns. The AWAITING_APPROVAL state — when the user is responding to a drafted plan — has its own state-specific tangential handling delivered via the hook reminder.)
+(This general tangential handling is for ordinary in-session turns. The AWAITING_APPROVAL state — when the user is responding to the plan — has its own state-specific tangential handling delivered via the hook reminder.)
 
 ## Task-type (optional)
 

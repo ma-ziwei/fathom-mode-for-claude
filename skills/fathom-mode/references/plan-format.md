@@ -9,13 +9,13 @@ The plan produced by `/fathom-plan` MUST contain these five sections, in this or
 ```markdown
 # Fathom Plan
 
-> Drafted from <N> turns of dialogue · Final Fathom Score: <X>%
+> From <N> turns of dialogue · Final Fathom Score: <X>%
 
 ## 1. Intent Summary
 
 One paragraph (3–5 sentences) distilling what the user *actually* wants — not the
 literal request as stated, but the underlying intent the dialogue surfaced. Use
-the user's own words where they were precise; paraphrase carefully where they
+the user's own words where they were precise; paraphrase where they
 were not.
 
 ## 2. Structured Context
@@ -51,9 +51,9 @@ Cause-effect links the user explicitly confirmed during dialogue. Format:
 If none were validated, write: "No causal relationships were explicitly
 confirmed in this session."
 
-## 4. Action Steps
+## 4. Steps
 
-Concrete next steps for actually doing what was planned. Three to five
+Next steps for actually doing what was planned. Three to five
 numbered steps maximum. Each step is one action, one paragraph max.
 
 1. **<Action verb> <object>** — brief description.
@@ -63,7 +63,7 @@ numbered steps maximum. Each step is one action, one paragraph max.
 
 Always end with this exact paragraph:
 
-> **Reply 'approve' to proceed with this plan, or describe what to change.**
+> **Reply 'approve' to proceed with this plan, 'reject' to discard, or describe what to change.**
 ```
 
 ---
@@ -73,7 +73,7 @@ Always end with this exact paragraph:
 - **Section 1 (Intent Summary)** uses the highest-confidence INTENT-type or GOAL-type nodes. Falls back to a paraphrase of the original task if no high-confidence intent nodes exist.
 - **Section 2 (Structured Context)** iterates over `Dimension` enum values; for each, list the nodes whose `dimension` field matches. Limit ~6 items per dimension.
 - **Section 3 (Validated Relationships)** only includes edges with `relation_type=CAUSAL` AND `source_type=USER_EXPLICIT`. This is the CFP guarantee — no Claude-inferred causation appears here.
-- **Section 4 (Action Steps)** is the place where some judgment is still needed; for Day 4, derive steps from the GOAL-type nodes and CONSTRAINT-type nodes via simple template. Day 5+ may add task_type-aware variants (thinking / creation / execution / learning).
+- **Section 4 (Steps)** is the place where some judgment is still needed; for Day 4, derive steps from the GOAL-type nodes and CONSTRAINT-type nodes via simple template. Day 5+ may add task_type-aware variants (thinking / creation / execution / learning).
 - **Section 5 (Approval)** is pure boilerplate, never varies.
 
 For the Day 1 stub, all sections render with plausible placeholder content based on the session's task string and turn count. The user will recognize their topic but not see real graph-derived material — that's the Day 4 deliverable.

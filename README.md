@@ -12,7 +12,7 @@ Fathom Mode is a **planning session mode** for AI interactions. While it is acti
 
 A **Fathom Score** climbs visibly with each in-session turn — fast initial gain, exponentially diminishing returns, asymptotic to (but never reaching) 100%. When you're ready, you say `/fathom-plan` and the session is rendered into a plan you can review, refine, and approve before any execution begins.
 
-The plan-drafting step is deterministic. The same Intent Graph always produces the same plan, no LLM call in between, fully auditable.
+The plan step is deterministic. The same Intent Graph always produces the same plan, no LLM call in between, fully auditable.
 
 ## Why it exists
 
@@ -51,8 +51,8 @@ Claude enters Fathom Mode. Each in-session turn produces the three-part response
 
 ```
 /fathom-status        # inspect the current Intent Graph and Score
-/fathom-plan          # draft a plan from the session; reply 'approve' to proceed
-/fathom-exit          # leave Fathom Mode without drafting a plan (clears state)
+/fathom-plan          # plan from the session; reply 'approve' to proceed
+/fathom-exit          # leave Fathom Mode (clears state)
 ```
 
 ### Example
@@ -92,7 +92,7 @@ Single plugin package containing four kinds of components:
 - **Skill** (`skills/fathom-mode/SKILL.md`) — auto-triggered description tells Claude when to switch into Fathom Mode behaviour. References in `skills/fathom-mode/references/` cover the three-part turn examples, Score-band guidance, and plan format template.
 - **Slash commands** (`commands/fathom*.md`) — explicit boundaries for entering, inspecting, planning, and exiting a session.
 - **Hook** (`hooks/inject_fathom_context.py`) — `UserPromptSubmit` hook that self-gates on the session state file. When a session is active, injects a short orientation reminder via `additionalContext`. When inactive, exits silently.
-- **Scripts** (`scripts/*.py`) — pure-Python deterministic logic for session state, graph updates, score, status rendering, plan drafting, exit. No LLM calls; Claude itself does the per-turn extraction work and shells out to the scripts for the deterministic operations.
+- **Scripts** (`scripts/*.py`) — pure-Python deterministic logic for session state, graph updates, score, status rendering, the plan step, exit. No LLM calls; Claude itself does the per-turn extraction work and shells out to the scripts for the deterministic operations.
 
 Session state lives at `${CLAUDE_PLUGIN_DATA}/active_session.json`, isolated per Claude Code install.
 

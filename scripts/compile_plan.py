@@ -10,7 +10,7 @@ reads as planning input (NOT shown to the user verbatim — see
 commands/fathom-plan.md for the contract).
 
 State machine: this script is the SINGLE convergence point for both
-plan-drafting entry paths (conversational "plan" trigger from the
+ways to enter the plan step (conversational "plan" trigger from the
 hook's IN_SESSION reminder + explicit /fathom-mode:fathom-plan slash
 command). On invocation it sets state["awaiting_approval"] = True
 BEFORE rendering, so the FSM correctly transitions even if rendering

@@ -94,13 +94,18 @@ def _emit(reminder_text: str | None) -> None:
 #     expresses approval of the plan: ..."). NO enumerated example words
 #     — Opus understands abstract semantics directly, no list needed.
 #   - Boundary counter-examples are KEPT where they narrow scope (e.g.,
-#     "plan a meeting" is not a request to draft a plan).
-#   - Vocabulary alignment with Claude Code: user-facing trigger words
-#     are `plan` (start drafting a plan) and `approve` (post-plan run).
-#     Note `execute` remains the engineering verb for Claude's action phase
-#     (e.g., "execute the plan via Edit/Write/Bash") — that role split
-#     mirrors Claude Code native plan mode's own split (Approve button
-#     -> system execution).
+#     "plan a meeting" is not a request to plan).
+#   - Vocabulary alignment with Claude Code: only four protocol words name
+#     fathom steps - `plan` (entry trigger + the artifact), `approve`
+#     (verdict +), `reject` (verdict -, discards plan + exits session),
+#     `execute` (post-approval action). Anything else (draft, compile,
+#     compiled intent, action plan, action steps) was retired. Generic
+#     verbs (write, read, present, see) are normal English, not protocol
+#     words. Note `execute` plays both roles - the user-facing verdict-
+#     consequence ("approve to execute") AND Claude's engineering action
+#     verb ("execute the plan via Edit/Write/Bash"). That role split
+#     mirrors Claude Code native plan mode (Approve button -> system
+#     execution).
 # ---------------------------------------------------------------------------
 
 
@@ -115,7 +120,7 @@ def _build_in_session_reminder(state: dict) -> str:
     no one-turn lag (the hint appears the same turn the score crosses).
 
     The plan-trigger sub-flow (user says "plan") is always present, not
-    gated by score. A user can choose to draft a plan at any score;
+    gated by score. A user can choose to plan at any score;
     `compile_plan.py` runs over whatever graph exists and the resulting
     plan is naturally sparse if the session is shallow — that's normal UX
     feedback, not something to prevent. Consistent with
@@ -152,19 +157,18 @@ def _build_in_session_reminder(state: dict) -> str:
         "If the `plan_hint_str` field from update_graph.py's output JSON is "
         "non-empty, append it verbatim at the end of your response.\n"
         "\n"
-        "If the user's message expresses intent to draft a plan from this "
-        "session, do NOT call update_graph.py this turn. Instead:\n"
+        "If the user's message expresses intent to plan, do NOT call "
+        "update_graph.py this turn. Instead:\n"
         f'  1. Call: python3 "{compile_plan_path}"\n'
         "  2. Read its stdout as the structured intent markdown — do NOT show it "
         "to the user verbatim.\n"
-        "  3. Draft a concrete plan for the user's task, grounded in "
-        "every section of the structured intent. Do not introduce concerns "
-        "absent from it.\n"
-        '  4. End your plan with: "Reply **approve** to proceed with this plan, or '
-        'describe what to change."\n'
+        "  3. Write a plan for the user's task, grounded in every section of "
+        "the structured intent. Do not introduce concerns absent from it.\n"
+        '  4. End your plan with: "Reply **approve** to proceed with this plan, '
+        '**reject** to discard, or describe what to change."\n'
         "\n"
         'Note: phrases like "plan a meeting" describe the session\'s content, '
-        "not a request to draft a plan — judge from context.\n"
+        "not a request to plan — judge from context.\n"
         "\n"
         "(Refer to SKILL.md for --nodes JSON schema, dimension definitions, "
         "and extraction discipline.)"
@@ -186,16 +190,17 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
         "\n"
         "- If the user describes changes to the plan: revise the plan inline, "
         "grounded in the same structured intent. Present the revised plan and "
-        'end with "Reply **approve** to proceed with this plan, or describe what to '
-        'change." You remain in the approval-waiting state.\n'
+        'end with "Reply **approve** to proceed with this plan, **reject** to '
+        'discard, or describe what to change." You remain in the '
+        "approval-waiting state.\n"
         "\n"
-        "- If the user expresses intent to cancel: call: "
+        "- If the user expresses intent to reject the plan: call: "
         f'python3 "{exit_session_path}"\n'
         "\n"
         "- If the user's message is unrelated to the plan: answer the question "
         'directly, then add: "Still awaiting your response on the plan — reply '
-        "**approve** to proceed, describe what to change, or use "
-        '/fathom-mode:fathom-exit to cancel."\n'
+        "**approve** to proceed, **reject** to discard, or describe changes "
+        'to revise."\n'
         "\n"
         "- If the message is ambiguous: ask one clarifying question about which "
         "of the above the user intends."
