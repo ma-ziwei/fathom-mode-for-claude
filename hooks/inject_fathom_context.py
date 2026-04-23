@@ -2,42 +2,47 @@
 """
 UserPromptSubmit hook for the Fathom Mode plugin.
 
-Four behaviors based on the user's prompt:
+Four prompt-shape behaviors at the top level:
 
   1. Prompt is exactly `/fathom-mode:fathom` (no args)
-     → Hook overwrites the state file with a pending-new-task stub
-       (immediately discarding any prior session — "干净简单不留" per
-       Lawrence's design). Then block + "Fathom Mode is ready." No LLM.
-       The next plain user message will become the new task (Behavior 4).
+     -> Hook overwrites the state file with a pending-new-task stub
+        ("clean, atomic, leave-no-residue" semantics: prior session is
+        wiped immediately). Then block + "Fathom Mode is ready." No LLM.
+        The next plain user message will become the new task (Behavior 4).
 
   2. Prompt starts with `/fathom-mode:fathom ` (args present)
-     → Hook runs init_session.py --task "<args>" via subprocess (creates
-       a fresh session, overwriting any prior state including pending
-       stubs from Behavior 1) AND injects a reminder telling the LLM
-       what to do (first-turn extraction + three-part response).
+     -> Hook runs init_session.py --task "<args>" via subprocess (creates
+        a fresh session, overwriting any prior state including pending
+        stubs from Behavior 1) AND injects a session-init reminder telling
+        the LLM what to do (first-turn extraction + three-part response).
 
   3. Prompt starts with `/fathom-mode:` (any other plugin slash command,
      incl. /fathom-mode:fathom-status / -compile / -exit)
-     → Skip injection, let the slash command's .md body drive behavior.
+     -> Skip injection, let the slash command's .md body drive behavior.
 
   4. Any other prompt (normal user message)
      a. State has pending_new_task flag
-        → This message IS the new task. Hook runs init_session.py --task
-          "<this message>" via subprocess, then injects a fresh-session
-          reminder. Mirrors Behavior 2 but triggered from a user message
-          instead of a slash command.
+        -> This message IS the new task. Hook runs init_session.py --task
+           "<this message>" via subprocess, then injects a fresh-session
+           reminder. Mirrors Behavior 2 but triggered from a user message
+           instead of a slash command.
      b. State has a real active session (session_id + task)
-        → Inject the in-session reminder (three-part rhythm, call
-          update_graph.py, append Score block).
+        -> Dispatch by FSM state into one of three reminders:
+            - awaiting_approval=True -> AWAITING_APPROVAL reminder
+              (do not call update_graph; judge user's response to the plan)
+            - score_pct >= 50         -> PLAN_READY reminder
+              (in-session three-part + Score block + plan hint + compile-
+              intent recognition)
+            - otherwise               -> IDLE reminder
+              (in-session three-part + Score block, NO plan/compile content)
      c. Neither
-        → Self-gate (no injection — plugin installed but no Fathom
-          activity in progress).
+        -> Self-gate (no injection — plugin installed but no Fathom
+           activity in progress).
 
-Two-step entry pattern (bare command then plain message) is back, but
-with a critical difference from the earlier Fix X attempt: bare command
-WIPES old state immediately, so the pending stub never coexists with
-old session data. The Drake/Tesla "new message absorbed into old
-session" bug class is structurally impossible.
+The score-threshold check for PLAN_READY lives in this Python dispatch,
+NOT in Claude's reasoning. compile_plan.py mutates state.awaiting_approval
+on invocation, so both conversational ("plan") and slash-command entry
+paths converge on the same AWAITING_APPROVAL state.
 
 Always exits 0 to avoid blocking the user prompt on hook errors.
 """
@@ -74,22 +79,129 @@ def _emit(reminder_text: str | None) -> None:
     sys.stdout.write(json.dumps(output))
 
 
-def _build_active_session_reminder(state: dict) -> str:
-    """In-session reminder — real session active, normal user prompt arrives."""
-    task = state.get("task", "(unknown task)")
+# ---------------------------------------------------------------------------
+# State machine reminder builders
+#
+# Three INDEPENDENT strings — not a shared template with conditional
+# sections. Per Lawrence: Claude's context for the current state should
+# contain only that state's reminder, nothing else.
+#
+# Wording principles:
+#   - Deterministic rules use direct imperatives ("At top of response,
+#     place..."). NO modal language ("consider", "if appropriate").
+#   - Intent classification uses direct judgment language ("If the user
+#     expresses approval of the plan: ..."). NO enumerated example words
+#     — Opus understands abstract semantics directly, no list needed.
+#   - Boundary counter-examples are KEPT where they narrow scope (e.g.,
+#     "plan a meeting" is not a compile trigger).
+#   - Vocabulary alignment with Claude Code: user-facing trigger words
+#     are `plan` (compile entry) and `execute` (post-plan run).
+# ---------------------------------------------------------------------------
+
+
+def _build_idle_reminder(state: dict) -> str:
+    """In-session reminder for IDLE state (active session, score < 50)."""
     score_pct = state.get("score_pct", 0)
-    turn = int(state.get("turn_count", 0))
+    update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
     return (
-        f"[Fathom Mode active — turn {turn + 1} — score {score_pct}%]\n"
-        f"Current task: {task}\n"
-        "Respond in the three-part format: short answer + insight + one targeted question. "
-        "Before responding, call update_graph.py via Bash. The script's JSON output "
-        "includes a pre-rendered `score_block_str` field — **use it verbatim at the TOP "
-        "of your response.** Do NOT re-render the bar yourself, do NOT substitute "
-        "symbols, do NOT add Surface/Depth/Bedrock breakdown rows or Turn/dims rows. "
-        "If this message is clearly unrelated to the current task, answer directly and mark it "
-        "tangential (do not update the graph)."
+        f"You are in an active Fathom session. Score: {score_pct}%.\n"
+        "\n"
+        "Format your response in three parts: a short answer to the user's "
+        "message, one insight about their underlying intent, and one question "
+        "that probes a dimension they have not yet covered.\n"
+        "\n"
+        "Before responding, call:\n"
+        f'  python3 "{update_graph_path}" --user-input "<user\'s verbatim message>" '
+        "--nodes '<your extracted nodes as JSON array>'\n"
+        "\n"
+        "At the top of your response, place the `score_block_str` field from "
+        "update_graph.py's output JSON verbatim. Do not re-render the bar, do "
+        "not modify symbols, do not add embellishment.\n"
+        "\n"
+        "(Refer to SKILL.md for --nodes JSON schema, dimension definitions, "
+        "and extraction discipline.)"
     )
+
+
+def _build_plan_ready_reminder(state: dict) -> str:
+    """In-session reminder for PLAN_READY state (active session, score >= 50)."""
+    score_pct = state.get("score_pct", 0)
+    update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
+    compile_plan_path = (_scripts_dir() / "compile_plan.py").as_posix()
+    return (
+        f"You are in an active Fathom session. Score: {score_pct}%.\n"
+        "\n"
+        "Format your response in three parts: a short answer to the user's "
+        "message, one insight about their underlying intent, and one question "
+        "that probes a dimension they have not yet covered.\n"
+        "\n"
+        "Before responding, call:\n"
+        f'  python3 "{update_graph_path}" --user-input "<user\'s verbatim message>" '
+        "--nodes '<your extracted nodes as JSON array>'\n"
+        "\n"
+        "At the top of your response, place the `score_block_str` field from "
+        "update_graph.py's output JSON verbatim.\n"
+        "\n"
+        "At the end of your response, append verbatim:\n"
+        "💡 Ready to plan? Reply **plan** to compile this into an action plan.\n"
+        "\n"
+        "If the user's message expresses intent to compile this session into a "
+        "plan, do NOT call update_graph.py this turn. Instead:\n"
+        f'  1. Call: python3 "{compile_plan_path}"\n'
+        "  2. Read its stdout as the compiled intent markdown — do NOT show it "
+        "to the user verbatim.\n"
+        "  3. Draft a concrete action plan for the user's task, grounded in "
+        "every section of the compiled intent. Do not introduce concerns "
+        "absent from it.\n"
+        '  4. End your plan with: "Reply **execute** to run the plan, or '
+        'describe what to change."\n'
+        "\n"
+        'Note: phrases like "plan a meeting" describe the session\'s content, '
+        "not a compile trigger — judge from context.\n"
+        "\n"
+        "(Refer to SKILL.md for --nodes JSON schema, dimension definitions, "
+        "and extraction discipline.)"
+    )
+
+
+def _build_awaiting_approval_reminder(state: dict) -> str:
+    """Reminder for AWAITING_APPROVAL state (compile_plan.py has been called)."""
+    exit_session_path = (_scripts_dir() / "exit_session.py").as_posix()
+    return (
+        "You presented a compiled plan to the user last turn. They are now "
+        "responding to it. Do NOT call update_graph.py this turn.\n"
+        "\n"
+        "Judge the user's message:\n"
+        "\n"
+        "- If the user expresses approval of the plan: execute the plan using "
+        "Claude Code's normal tools (Edit, Write, Bash, etc.). After execution "
+        f'completes, call: python3 "{exit_session_path}"\n'
+        "\n"
+        "- If the user describes changes to the plan: revise the plan inline, "
+        "grounded in the same compiled intent. Present the revised plan and "
+        'end with "Reply **execute** to run the plan, or describe what to '
+        'change." You remain in the approval-waiting state.\n'
+        "\n"
+        "- If the user expresses intent to cancel: call: "
+        f'python3 "{exit_session_path}"\n'
+        "\n"
+        "- If the user's message is unrelated to the plan: answer the question "
+        'directly, then add: "Still awaiting your response on the plan — reply '
+        "**execute** to run, describe what to change, or use "
+        '/fathom-mode:fathom-exit to cancel."\n'
+        "\n"
+        "- If the message is ambiguous: ask one clarifying question about which "
+        "of the above the user intends."
+    )
+
+
+def _build_active_session_reminder(state: dict) -> str:
+    """Dispatch in-session reminder by FSM state."""
+    if state.get("awaiting_approval", False):
+        return _build_awaiting_approval_reminder(state)
+    if int(state.get("score_pct", 0)) >= 50:
+        return _build_plan_ready_reminder(state)
+    return _build_idle_reminder(state)
 
 
 def _build_session_init_reminder(task: str, *, source: str) -> str:
@@ -104,7 +216,7 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
     # the literal `${CLAUDE_PLUGIN_ROOT}/scripts/...`, expand it to empty
     # (env var isn't propagated to Bash-tool subprocesses on Windows), and
     # try to open `/scripts/update_graph.py` which git-bash mistranslates
-    # into `C:\Program Files\Git\scripts\...` → "no such file" error.
+    # into `C:\Program Files\Git\scripts\...` — "no such file" error.
     # Using as_posix() so backslash separators on Windows become forward
     # slashes that bash handles cleanly. Wrapping in double quotes covers
     # any whitespace in the install path.
@@ -118,7 +230,7 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
         )
     else:  # source == "pending"
         framing = (
-            f'[Fathom Mode: pending-new-task consumed → fresh session for "{task}"]\n'
+            f'[Fathom Mode: pending-new-task consumed -> fresh session for "{task}"]\n'
             "The user previously typed bare /fathom-mode:fathom (which wiped any "
             "prior session and set a pending flag). This message IS the new task. "
             "The hook ran init_session.py for you."
@@ -185,9 +297,9 @@ def _read_state() -> dict | None:
 def _wipe_to_pending_stub() -> None:
     """
     Overwrite the state file with a pending-new-task stub. Old session
-    data (if any) is discarded immediately — "干净简单不留". Atomic via
-    temp file + replace so a crash mid-write can't leave a half-rewritten
-    file.
+    data (if any) is discarded immediately — atomic wipe, no residual
+    state. Atomic via temp file + replace so a crash mid-write can't
+    leave a half-rewritten file.
     """
     state_path = _state_path()
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -249,7 +361,7 @@ def main() -> None:
         payload = {}
     prompt_text = (payload.get("prompt") or "").strip()
 
-    # Behavior 1: bare `/fathom-mode:fathom` → wipe state to pending stub
+    # Behavior 1: bare `/fathom-mode:fathom` -> wipe state to pending stub
     # + instant block + "Fathom Mode is ready." Old session is discarded
     # immediately; next plain user message becomes the new task.
     if prompt_text == _FATHOM_ENTRY:
@@ -260,7 +372,7 @@ def main() -> None:
         }))
         sys.exit(0)
 
-    # Behavior 2: `/fathom-mode:fathom <task>` (args present) →
+    # Behavior 2: `/fathom-mode:fathom <task>` (args present) ->
     # hook runs init_session.py + injects reminder. Trailing space
     # distinguishes args from sibling commands like /fathom-mode:fathom-status.
     if prompt_text.startswith(_FATHOM_ENTRY + " "):
@@ -270,25 +382,25 @@ def main() -> None:
         # Fall through to skip injection if task empty or init failed.
         sys.exit(0)
 
-    # Behavior 3: other /fathom-mode:* slash commands → skip injection.
+    # Behavior 3: other /fathom-mode:* slash commands -> skip injection.
     if prompt_text.startswith("/fathom-mode:"):
         sys.exit(0)
 
-    # Behavior 4: normal user prompt — depends on state.
+    # Behavior 4: normal user prompt -- depends on state.
     state = _read_state()
 
-    # 4a: pending-new-task stub set by Behavior 1 → this message IS the new task.
+    # 4a: pending-new-task stub set by Behavior 1 -> this message IS the new task.
     if state and state.get("pending_new_task"):
         if prompt_text and _try_run_init_session(prompt_text):
             _emit(_build_session_init_reminder(prompt_text, source="pending"))
         # If empty prompt (defensive) or init failed: keep stub, no injection.
         sys.exit(0)
 
-    # 4b: real active session → in-session reminder.
+    # 4b: real active session -> dispatch by FSM state.
     if state and state.get("session_id") and state.get("task"):
         _emit(_build_active_session_reminder(state))
 
-    # 4c: no state at all → self-gate.
+    # 4c: no state at all -> self-gate.
     sys.exit(0)
 
 
