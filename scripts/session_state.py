@@ -61,10 +61,23 @@ def load_state() -> dict | None:
 
 
 def save_state(state: dict) -> None:
-    """Write the session state dict atomically (temp file + replace)."""
+    """Write the session state dict atomically (temp file + replace).
+
+    ensure_ascii=True is mandatory here. State values may contain lone
+    UTF-16 surrogates (e.g., \\ud83d without a paired low surrogate), which
+    UTF-8 cannot encode - the resulting UnicodeEncodeError breaks the
+    write. Sources of lone surrogates in our pipeline:
+      - Claude writes the per-turn JSON payload via Bash heredoc (commit
+        2bbca50); \\uXXXX escapes for supplementary-plane chars can split
+        surrogate pairs, leaving lone surrogates after json.loads.
+      - User pastes mojibake from a corrupted source.
+    ensure_ascii=True escapes everything non-ASCII as \\uXXXX in the file,
+    which round-trips losslessly via json.loads. Trade-off: less human-
+    readable state file, but the bug class becomes unrepresentable.
+    """
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = STATE_PATH.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.write_text(json.dumps(state, ensure_ascii=True, indent=2), encoding="utf-8")
     tmp.replace(STATE_PATH)
 
 

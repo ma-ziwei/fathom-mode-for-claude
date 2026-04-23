@@ -211,6 +211,15 @@ def main() -> None:
     state = require_active()  # exits 1 if no active session
 
     user_input = user_input.strip()
+    # Defense: replace any lone UTF-16 surrogates (e.g., \ud83d without a
+    # paired low surrogate) with `?`. The encode/decode round-trip with
+    # errors='replace' substitutes only the unencodable chars and leaves
+    # valid Unicode intact. Sources: Claude's JSON payload may contain
+    # \uXXXX escapes that split a surrogate pair; user paste may include
+    # mojibake. session_state.save_state has a storage-layer guard
+    # (ensure_ascii=True), this is the entry-layer complement keeping
+    # in-memory state and downstream extraction inputs clean.
+    user_input = user_input.encode('utf-8', errors='replace').decode('utf-8')
     warnings = list(state.get("extraction_warnings", []))
 
     # --- Reconstruct the graph from persisted state ---
