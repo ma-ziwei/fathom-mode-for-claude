@@ -81,4 +81,4 @@ Why bad: tool-shopping with no diagnosis, multiple unprioritized questions, no i
 - **Short answer ≠ blow-off.** It's a direct, specific acknowledgment of what the user said. It earns the right to ask the next question.
 - **Insight is the load-bearing part.** Without it, the response feels like a survey. The insight is where Claude adds value beyond a form.
 - **One question, one dimension.** Pick the dimension `update_graph.py` returns as `next_target_dimension` and write the question to advance it. If the JSON returned a different dim than the one you'd guess, trust the JSON.
-- **No tool recommendations, no curricula, no plans during in-session turns.** Those are compile-time outputs. In-session, only ask and observe.
+- **No tool recommendations, no curricula, no plans during in-session turns.** Those belong in the plan, not the dialogue. In-session, only ask and observe.

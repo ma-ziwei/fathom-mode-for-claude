@@ -1,9 +1,9 @@
 ---
-description: Exit Fathom Mode without compiling
+description: Exit Fathom Mode without drafting a plan
 allowed-tools: Bash
 ---
 
-Exit the current Fathom Mode session without compiling.
+Exit the current Fathom Mode session without drafting a plan.
 
 Steps:
 

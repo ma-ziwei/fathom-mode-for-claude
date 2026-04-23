@@ -34,12 +34,12 @@ def _dimension_counts(nodes: list[dict]) -> dict[str, int]:
 
 
 def _expected_turns(turn_count: int) -> str:
-    """Rough estimate of how many turns to compile — for orientation only."""
+    """Rough estimate of how many turns to be plan-ready — for orientation only."""
     if turn_count <= 3:
         return "~6-8 expected"
     if turn_count <= 6:
         return "~8-10 expected"
-    return "compile-ready depth"
+    return "plan-ready depth"
 
 
 def main() -> None:
@@ -80,7 +80,7 @@ def main() -> None:
             preview = content[:80] + ("…" if len(content) > 80 else "")
             lines.append(f"{i}. {preview}")
     lines.append("")
-    lines.append("_Commands: `/fathom-compile` to compile · `/fathom-exit` to leave without compiling_")
+    lines.append("_Commands: `/fathom-plan` to draft a plan · `/fathom-exit` to leave the session_")
     lines.append("")
 
     sys.stdout.write("\n".join(lines))

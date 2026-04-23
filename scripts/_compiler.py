@@ -26,7 +26,7 @@ Cut from ftg/compiler.py (intentionally not ported):
 
 Output is NOT a plan — it is a structured-intent prompt that Claude reads
 AS planning input. The "plan" is what Claude produces by reasoning over
-this output in the fathom-compile flow.
+this output in the fathom-plan flow.
 """
 
 from __future__ import annotations

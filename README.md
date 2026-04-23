@@ -10,9 +10,9 @@ Fathom Mode is a **planning session mode** for AI interactions. While it is acti
 - **One insight** — an observation or tension worth noticing at the current depth of understanding
 - **One targeted follow-up question** — advancing exactly one dimension of understanding
 
-A **Fathom Score** climbs visibly with each in-session turn — fast initial gain, exponentially diminishing returns, asymptotic to (but never reaching) 100%. When you're ready, you say `/fathom-compile` and the session is rendered into a structured plan you can review, refine, and approve before any execution begins.
+A **Fathom Score** climbs visibly with each in-session turn — fast initial gain, exponentially diminishing returns, asymptotic to (but never reaching) 100%. When you're ready, you say `/fathom-plan` and the session is rendered into a plan you can review, refine, and approve before any execution begins.
 
-The compile step is deterministic. The same Intent Graph always compiles to the same plan, no LLM call in between, fully auditable.
+The plan-drafting step is deterministic. The same Intent Graph always produces the same plan, no LLM call in between, fully auditable.
 
 ## Why it exists
 
@@ -29,7 +29,7 @@ Opus 4.7 already handles ambiguity better than its predecessors: Anthropic's own
 2. In Claude Code, install via the local path. Two options:
    - **Project-scoped**: from the project where you want to use it, `/plugin install <absolute-path>`.
    - **User-scoped**: `/plugin marketplace add <absolute-path>` and then enable from `/plugin`.
-3. Verify: `/help` should now list `fathom`, `fathom-status`, `fathom-compile`, `fathom-exit` under "Plugin commands."
+3. Verify: `/help` should now list `fathom`, `fathom-status`, `fathom-plan`, `fathom-exit` under "Plugin commands."
 
 Requires Python 3 on `PATH` (`python3` invocation). No third-party Python dependencies for the Day 1 stub.
 
@@ -51,8 +51,8 @@ Claude enters Fathom Mode. Each in-session turn produces the three-part response
 
 ```
 /fathom-status        # inspect the current Intent Graph and Score
-/fathom-compile       # compile the session into a structured plan; reply 'approve' to proceed
-/fathom-exit          # leave Fathom Mode without compiling (clears state)
+/fathom-plan          # draft a plan from the session; reply 'approve' to proceed
+/fathom-exit          # leave Fathom Mode without drafting a plan (clears state)
 ```
 
 ### Example
@@ -72,9 +72,9 @@ Dimensions active: WHO, WHAT, WHY | next: HOW
 **Fathom Score**: `█████████░░░░░ 63%` (Δ +16%)
 ...
 
-> /fathom-compile
+> /fathom-plan
 
-[5-section structured plan]
+[5-section plan]
 
 **Reply 'approve' to proceed with this plan, or describe what to change.**
 
@@ -89,10 +89,10 @@ If you ask something tangential mid-session ("what time is it in Tokyo?") Claude
 
 Single plugin package containing four kinds of components:
 
-- **Skill** (`skills/fathom-mode/SKILL.md`) — auto-triggered description tells Claude when to switch into Fathom Mode behaviour. References in `skills/fathom-mode/references/` cover the three-part turn examples, Score-band guidance, and compile output template.
-- **Slash commands** (`commands/fathom*.md`) — explicit boundaries for entering, inspecting, compiling, and exiting a session.
+- **Skill** (`skills/fathom-mode/SKILL.md`) — auto-triggered description tells Claude when to switch into Fathom Mode behaviour. References in `skills/fathom-mode/references/` cover the three-part turn examples, Score-band guidance, and plan format template.
+- **Slash commands** (`commands/fathom*.md`) — explicit boundaries for entering, inspecting, planning, and exiting a session.
 - **Hook** (`hooks/inject_fathom_context.py`) — `UserPromptSubmit` hook that self-gates on the session state file. When a session is active, injects a short orientation reminder via `additionalContext`. When inactive, exits silently.
-- **Scripts** (`scripts/*.py`) — pure-Python deterministic logic for session state, graph updates, score, status rendering, compile, exit. No LLM calls; Claude itself does the per-turn extraction work and shells out to the scripts for the deterministic operations.
+- **Scripts** (`scripts/*.py`) — pure-Python deterministic logic for session state, graph updates, score, status rendering, plan drafting, exit. No LLM calls; Claude itself does the per-turn extraction work and shells out to the scripts for the deterministic operations.
 
 Session state lives at `${CLAUDE_PLUGIN_DATA}/active_session.json`, isolated per Claude Code install.
 
@@ -104,7 +104,7 @@ This concept originates from prior publications — the SSRN paper *Fathom-then-
 
 - **Day 2** — real Fathom Score formula (`1 - exp(-0.10 * latent_depth)`, asymptotic 100%, dimension-aware diminishing returns)
 - **Day 3** — real Intent Graph operations (NetworkX-free, dict-backed, with the CFP downgrade rule baked into edge insertion)
-- **Day 4** — real Compiler (5-section structured prompt assembly from the graph) + Causal Fathom Protocol (linguistic causal-marker detection limiting causal edges to user-explicit relationships)
+- **Day 4** — real Compiler module (5-section structured intent assembly from the graph) + Causal Fathom Protocol (linguistic causal-marker detection limiting causal edges to user-explicit relationships)
 - **Day 5** — polish, demo recording, cross-platform fixes (Cowork hooks, claude.ai Skill repackaging), README finalization, marketplace submission prep
 
 ## License

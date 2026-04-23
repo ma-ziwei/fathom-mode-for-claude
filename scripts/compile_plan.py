@@ -7,11 +7,11 @@ Builds an IntentGraph from persisted state, then calls
 _compiler.compile_intent_graph(graph, original_request, task_type) to
 render the 5-section structured-intent markdown. Output is what Claude
 reads as planning input (NOT shown to the user verbatim — see
-commands/fathom-compile.md for the contract).
+commands/fathom-plan.md for the contract).
 
 State machine: this script is the SINGLE convergence point for both
-compile entry paths (conversational "plan" trigger from the hook's
-PLAN_READY reminder + explicit /fathom-mode:fathom-compile slash
+plan-drafting entry paths (conversational "plan" trigger from the
+hook's IN_SESSION reminder + explicit /fathom-mode:fathom-plan slash
 command). On invocation it sets state["awaiting_approval"] = True
 BEFORE rendering, so the FSM correctly transitions even if rendering
 fails partway. The next-turn hook dispatch reads the flag and routes

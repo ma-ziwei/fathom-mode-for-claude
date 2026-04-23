@@ -17,7 +17,7 @@ Four prompt-shape behaviors at the top level:
         the LLM what to do (first-turn extraction + three-part response).
 
   3. Prompt starts with `/fathom-mode:` (any other plugin slash command,
-     incl. /fathom-mode:fathom-status / -compile / -exit)
+     incl. /fathom-mode:fathom-status / -plan / -exit)
      -> Skip injection, let the slash command's .md body drive behavior.
 
   4. Any other prompt (normal user message)
@@ -32,7 +32,7 @@ Four prompt-shape behaviors at the top level:
               (do not call update_graph; judge user's response to the plan)
             - otherwise               -> IN_SESSION reminder
               (three-part + Score block + data-driven plan hint via
-              update_graph.py's plan_hint_str field + compile-intent
+              update_graph.py's plan_hint_str field + plan-trigger
               recognition always-on)
      c. Neither
         -> Self-gate (no injection — plugin installed but no Fathom
@@ -94,10 +94,10 @@ def _emit(reminder_text: str | None) -> None:
 #     expresses approval of the plan: ..."). NO enumerated example words
 #     — Opus understands abstract semantics directly, no list needed.
 #   - Boundary counter-examples are KEPT where they narrow scope (e.g.,
-#     "plan a meeting" is not a compile trigger).
+#     "plan a meeting" is not a request to draft a plan).
 #   - Vocabulary alignment with Claude Code: user-facing trigger words
-#     are `plan` (compile entry) and `approve` (post-plan run). Note
-#     `execute` remains the engineering verb for Claude's action phase
+#     are `plan` (start drafting a plan) and `approve` (post-plan run).
+#     Note `execute` remains the engineering verb for Claude's action phase
 #     (e.g., "execute the plan via Edit/Write/Bash") — that role split
 #     mirrors Claude Code native plan mode's own split (Approve button
 #     -> system execution).
@@ -114,12 +114,12 @@ def _build_in_session_reminder(state: dict) -> str:
     if non-empty — no LLM threshold judgment, no hook-side score dispatch,
     no one-turn lag (the hint appears the same turn the score crosses).
 
-    The compile-trigger sub-flow (user says "plan" / "compile") is always
-    present, not gated by score. A user can choose to compile at any score;
+    The plan-trigger sub-flow (user says "plan") is always present, not
+    gated by score. A user can choose to draft a plan at any score;
     `compile_plan.py` runs over whatever graph exists and the resulting
     plan is naturally sparse if the session is shallow — that's normal UX
     feedback, not something to prevent. Consistent with
-    `/fathom-mode:fathom-compile` slash command which was already always-on.
+    `/fathom-mode:fathom-plan` slash command which was already always-on.
     """
     update_graph_path = (_scripts_dir() / "update_graph.py").as_posix()
     compile_plan_path = (_scripts_dir() / "compile_plan.py").as_posix()
@@ -152,19 +152,19 @@ def _build_in_session_reminder(state: dict) -> str:
         "If the `plan_hint_str` field from update_graph.py's output JSON is "
         "non-empty, append it verbatim at the end of your response.\n"
         "\n"
-        "If the user's message expresses intent to compile this session into a "
-        "plan, do NOT call update_graph.py this turn. Instead:\n"
+        "If the user's message expresses intent to draft a plan from this "
+        "session, do NOT call update_graph.py this turn. Instead:\n"
         f'  1. Call: python3 "{compile_plan_path}"\n'
-        "  2. Read its stdout as the compiled intent markdown — do NOT show it "
+        "  2. Read its stdout as the structured intent markdown — do NOT show it "
         "to the user verbatim.\n"
-        "  3. Draft a concrete action plan for the user's task, grounded in "
-        "every section of the compiled intent. Do not introduce concerns "
+        "  3. Draft a concrete plan for the user's task, grounded in "
+        "every section of the structured intent. Do not introduce concerns "
         "absent from it.\n"
         '  4. End your plan with: "Reply **approve** to proceed with this plan, or '
         'describe what to change."\n'
         "\n"
         'Note: phrases like "plan a meeting" describe the session\'s content, '
-        "not a compile trigger — judge from context.\n"
+        "not a request to draft a plan — judge from context.\n"
         "\n"
         "(Refer to SKILL.md for --nodes JSON schema, dimension definitions, "
         "and extraction discipline.)"
@@ -175,7 +175,7 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
     """Reminder for AWAITING_APPROVAL state (compile_plan.py has been called)."""
     exit_session_path = (_scripts_dir() / "exit_session.py").as_posix()
     return (
-        "You presented a compiled plan to the user last turn. They are now "
+        "You presented a plan to the user last turn. They are now "
         "responding to it. Do NOT call update_graph.py this turn.\n"
         "\n"
         "Judge the user's message:\n"
@@ -185,7 +185,7 @@ def _build_awaiting_approval_reminder(state: dict) -> str:
         f'completes, call: python3 "{exit_session_path}"\n'
         "\n"
         "- If the user describes changes to the plan: revise the plan inline, "
-        "grounded in the same compiled intent. Present the revised plan and "
+        "grounded in the same structured intent. Present the revised plan and "
         'end with "Reply **approve** to proceed with this plan, or describe what to '
         'change." You remain in the approval-waiting state.\n'
         "\n"

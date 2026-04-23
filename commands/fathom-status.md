@@ -12,7 +12,7 @@ Steps:
 2. Present the script's output verbatim — do not rewrite, summarize, or reorder. The user is asking to inspect the white-box state.
 
 3. After the rendered status, remind the user briefly of next-step commands:
-   - `/fathom-compile` — compile the session into a structured plan for review
-   - `/fathom-exit` — leave without compiling
+   - `/fathom-plan` — draft a plan from the session
+   - `/fathom-exit` — leave the session without drafting a plan
 
 If `render_status.py` exits with a non-zero status (e.g. no active session), present its error message verbatim and stop.

@@ -134,7 +134,7 @@ def render_score_block(score_pct: int, score_delta: int) -> str:
 # to the production of the score, eliminating the lag).
 PLAN_READY_THRESHOLD = 50
 PLAN_HINT_TEXT = (
-    "💡 Ready to plan? Reply **plan** to compile this into an action plan."
+    "💡 Ready to plan? Reply **plan** to draft your plan from this session."
 )
 
 
