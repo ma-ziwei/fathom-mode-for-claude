@@ -48,26 +48,6 @@ from update_graph import render_score_block  # shared 2-line bar renderer
 # ---------------------------------------------------------------------------
 
 
-def _bootstrap_score_pct_stub(task: str) -> int:
-    """
-    Placeholder first-turn score when init_session runs without --nodes.
-    Heuristic: longer task description implies more dimensions likely
-    pre-filled in Claude's follow-up extraction. Floor 35%, cap 55%.
-
-    Without this stub, init_session returns 0% until update_graph.py runs.
-    If Claude calls init_session but skips update_graph for the first user
-    message (a common interpretation of the Per-turn protocol's "for each
-    subsequent user message" phrasing), the user would see a 0% score block
-    on turn 1. The stub gives a reasonable first impression; update_graph
-    replaces it with the real computed score on the next call.
-
-    Trade-off: turn-1 delta becomes `real_score - stub` instead of
-    `real_score - 0`, i.e., smaller but still positive in practice.
-    """
-    base = len(task.strip())
-    return min(55, max(35, base // 4))
-
-
 def _parse_initial_nodes(nodes_arg: str | None, warnings: list) -> list[Node]:
     """Parse --nodes JSON. On failure, log to warnings and return []."""
     if not nodes_arg:
@@ -198,12 +178,11 @@ def main() -> None:
             "depth_pct": round(breakdown.depth_penetration * 100),
             "bedrock_pct": round(breakdown.bedrock_grounding * 100),
         }
-    else:
-        # Stub baseline when no --nodes: gives a non-zero first-turn score
-        # so the user doesn't see "0%" if Claude calls init_session but
-        # skips update_graph.py on the bootstrap message. update_graph.py
-        # will overwrite this with the real computed score on its first call.
-        state["score_pct"] = _bootstrap_score_pct_stub(task)
+    # else: state keeps score_pct=0 + zeroed breakdown. The output JSON
+    # below also OMITS score_block_str in this case — so Claude can't
+    # lazily copy init_session's score to the user and skip the real
+    # scoring step. The next update_graph.py call (required by SKILL.md
+    # for turn 1) produces the score_block_str Claude actually displays.
 
     state["extraction_warnings"] = warnings
     save_state(state)
@@ -211,18 +190,10 @@ def main() -> None:
     dims_active = sorted({n.dimension for n in initial_nodes if n.dimension})
     next_target = find_target_dimension(graph)
 
-    score_block_str = render_score_block(state["score_pct"], state["score_pct"])
-
-    sys.stdout.write(json.dumps({
+    output = {
         "session_id": session_id,
         "task": task,
         "task_type": state["task_type"],
-        "score_pct": state["score_pct"],
-        "score_delta": state["score_pct"],  # turn 0 — delta is the full score
-        "score_block_str": score_block_str,
-        "surface_pct": state["score_breakdown"]["surface_pct"],
-        "depth_pct": state["score_breakdown"]["depth_pct"],
-        "bedrock_pct": state["score_breakdown"]["bedrock_pct"],
         "dimensions_active": dims_active,
         "next_target_dimension": next_target,
         "turn_count": 0,
@@ -230,10 +201,25 @@ def main() -> None:
             f"New session. {len(initial_nodes)} node"
             f"{'s' if len(initial_nodes) != 1 else ''} from first-turn extraction."
             if initial_nodes
-            else "New session. No nodes yet — first user message will populate."
+            else "New session. No nodes yet — call update_graph.py with the user's message to score turn 1."
         ),
         "extraction_warnings": warnings,
-    }, ensure_ascii=False))
+    }
+
+    # Score fields only included when we have real nodes to score.
+    # Without them, Claude's SKILL.md instruction "place score_block_str
+    # verbatim" finds no score_block_str here → Claude calls update_graph.py
+    # to get one (the correct turn-1 flow).
+    if initial_nodes:
+        score_block_str = render_score_block(state["score_pct"], state["score_pct"])
+        output["score_pct"] = state["score_pct"]
+        output["score_delta"] = state["score_pct"]
+        output["score_block_str"] = score_block_str
+        output["surface_pct"] = state["score_breakdown"]["surface_pct"]
+        output["depth_pct"] = state["score_breakdown"]["depth_pct"]
+        output["bedrock_pct"] = state["score_breakdown"]["bedrock_pct"]
+
+    sys.stdout.write(json.dumps(output, ensure_ascii=False))
 
 
 if __name__ == "__main__":

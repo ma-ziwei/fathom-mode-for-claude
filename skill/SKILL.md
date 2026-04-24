@@ -18,13 +18,19 @@ In examples below, `<scripts>` stands for the resolved absolute path you compute
 
 ## Starting a session
 
-When this skill activates on a user message describing a task to plan, bootstrap a session:
+On the first user message, you MUST call **both** scripts before responding:
+
+**Step 1 — Create the session** (no score returned):
 
 ```bash
 python3 <scripts>/init_session.py --task "<user's task>"
 ```
 
-The script outputs JSON with `session_id`, `score_block_str`, `next_target_dimension`, etc. Place `score_block_str` verbatim at the top of your response. Then respond per the Per-turn protocol below, treating this as turn 1.
+The output has `session_id`, `task`, `next_target_dimension`, etc. **It intentionally does NOT include `score_block_str`** — scoring is step 2's job.
+
+**Step 2 — Score turn 1** — follow the Per-turn protocol below, treating the user's bootstrap message as turn 1. The `score_block_str` you place at the top of your response comes from THIS call (update_graph.py), not step 1.
+
+Do not skip step 2. Both scripts run for the first user message.
 
 ## Per-turn protocol
 
