@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import select
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -186,18 +187,28 @@ def main() -> None:
     # for standalone debugging and --help discoverability.
     stdin_payload = None
     if not sys.stdin.isatty():
-        # Read raw bytes and decode as UTF-8 explicitly. sys.stdin.read()
-        # uses the OS default codec (GBK / cp1252 on Windows), which
-        # mangles non-ASCII characters in the heredoc payload (Chinese,
-        # em-dashes, smart quotes, emoji) into surrogate-escaped garbage
-        # that then crashes json.loads or corrupts user_input downstream.
+        # Probe stdin before blocking read: Cowork's bash tool may leave
+        # stdin as an open-but-empty pipe that never closes — sys.stdin.
+        # buffer.read() would block until Cowork's 45s RPC timeout. If no
+        # data is ready within the probe window, proceed with CLI args only.
         try:
-            raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
-            if raw.strip():
-                stdin_payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            print(f"stdin payload JSON parse failed: {exc}", file=sys.stderr)
-            sys.exit(1)
+            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+            has_data = bool(ready)
+        except (OSError, ValueError):
+            has_data = True  # Non-Unix fallback (select on fd unsupported)
+        if has_data:
+            # Read raw bytes and decode as UTF-8 explicitly. sys.stdin.read()
+            # uses the OS default codec (GBK / cp1252 on Windows), which
+            # mangles non-ASCII characters in the heredoc payload (Chinese,
+            # em-dashes, smart quotes, emoji) into surrogate-escaped garbage
+            # that then crashes json.loads or corrupts user_input downstream.
+            try:
+                raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+                if raw.strip():
+                    stdin_payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                print(f"stdin payload JSON parse failed: {exc}", file=sys.stderr)
+                sys.exit(1)
 
     user_input = args.user_input
     nodes_json = args.nodes

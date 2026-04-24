@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import select
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -97,16 +98,26 @@ def main() -> None:
     # cannot mangle non-ASCII task text.
     stdin_payload = None
     if not sys.stdin.isatty():
+        # Probe stdin before blocking read: Cowork's bash tool may leave
+        # stdin as an open-but-empty pipe that never closes — sys.stdin.
+        # buffer.read() would block until Cowork's 45s RPC timeout. If no
+        # data is ready within the probe window, proceed with CLI args only.
         try:
-            raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
-            if raw.strip():
-                stdin_payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            sys.stdout.write(json.dumps({
-                "error": "stdin_parse_failed",
-                "message": f"stdin payload JSON parse failed: {exc}",
-            }))
-            sys.exit(1)
+            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+            has_data = bool(ready)
+        except (OSError, ValueError):
+            has_data = True  # Non-Unix fallback (select on fd unsupported)
+        if has_data:
+            try:
+                raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+                if raw.strip():
+                    stdin_payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                sys.stdout.write(json.dumps({
+                    "error": "stdin_parse_failed",
+                    "message": f"stdin payload JSON parse failed: {exc}",
+                }))
+                sys.exit(1)
 
     task = args.task
     nodes_json = args.nodes
