@@ -28,8 +28,9 @@ import argparse
 import json
 import sys
 import uuid
+from datetime import datetime, timezone
 
-from session_state import require_active, save_state
+from session_state import load_state, save_state
 from _models import Edge, Node
 from _scoring import compute_fathom_breakdown
 from _graph import IntentGraph
@@ -213,9 +214,32 @@ def main() -> None:
             'or --user-input arg)'
         )
 
-    state = require_active()  # exits 1 if no active session
-
     user_input = user_input.strip()
+
+    # Load state; auto-bootstrap if absent or invalid. This lets
+    # environments that don't run init_session.py explicitly first
+    # (e.g., Cowork, where no hook fires to do it) still call this
+    # script directly — the first user_input becomes the session's
+    # task description. Callers that need a custom task summary or
+    # task_type should still run init_session.py first; this auto-
+    # bootstrap is the safety net, not the primary path.
+    state = load_state()
+    if not state or not state.get("session_id") or not state.get("task"):
+        state = {
+            "session_id": uuid.uuid4().hex[:12],
+            "task": user_input,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "task_type": task_type or "general",
+            "turn_count": 0,
+            "score_pct": 0,
+            "score_breakdown": {"surface_pct": 0, "depth_pct": 0, "bedrock_pct": 0},
+            "nodes": [],
+            "edges": [],
+            "dialogue": [],
+            "verified_causal_pairs": {},
+            "extraction_warnings": [],
+        }
+        save_state(state)
     # Defense: replace any lone UTF-16 surrogates (e.g., \ud83d without a
     # paired low surrogate) with `?`. The encode/decode round-trip with
     # errors='replace' substitutes only the unencodable chars and leaves

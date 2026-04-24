@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `update_graph.py` now auto-bootstraps a session when none exists, using the current `user_input` as the task description. Previously, calling `update_graph.py` before `init_session.py` returned a `no_active_session` error, which was a common footgun in environments where no hook runs `init_session.py` first (Cowork, manual CLI invocation). The traditional flow (explicit `init_session.py` → `update_graph.py`) still works and is still the recommended path for callers that want a custom task summary or task type.
 - `plugin/skills/fathom/SKILL.md` now carries the full per-turn protocol (script path resolution, session bootstrap, `update_graph.py` invocation, plan flow, approval flow) rather than deferring to the `UserPromptSubmit` hook. Previously, uploading `fathom-plugin.zip` to Cowork (which doesn't fire hooks) produced noisy path and `no_active_session` errors on the first turn while Claude reconstructed the flow. The plugin now works cleanly in both hook-supporting (Claude Code CLI, Claude Desktop Chat tab) and non-hook environments (Cowork).
 
 ## [0.1.0] — 2026-04-24
