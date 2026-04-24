@@ -21,11 +21,9 @@ Fathom Mode is a planning session mode for Claude Code and Cowork. It helps Clau
 /plugin install fathom@fathom-mode
 ```
 
-This enables four slash commands:
+This enables two slash commands:
 
 - `/fathom:start <task>` — enter Fathom Mode with a task description
-- `/fathom:status` — inspect the current understanding and Score
-- `/fathom:plan` — compile the session into a structured plan
 - `/fathom:exit` — leave Fathom Mode (clears state)
 
 On `/fathom:start`, Claude enters a planning session instead of immediately editing files.
