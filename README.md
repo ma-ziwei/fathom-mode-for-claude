@@ -19,10 +19,16 @@ Fathom Mode is a planning session mode for Claude Code and Cowork. It helps Clau
 ```
 /plugin marketplace add https://github.com/ma-ziwei/fathom-mode-for-claude.git
 /plugin install fathom@fathom-mode
-/fathom:start refactor this React component so it's easier to maintain
 ```
 
-Claude enters a planning session instead of immediately editing files. Use `/fathom:status` to see current understanding, `/fathom:plan` when you want a structured plan, `/fathom:exit` to leave.
+This enables four slash commands:
+
+- `/fathom:start <task>` — enter Fathom Mode with a task description
+- `/fathom:status` — inspect the current understanding and Score
+- `/fathom:plan` — compile the session into a structured plan
+- `/fathom:exit` — leave Fathom Mode (clears state)
+
+On `/fathom:start`, Claude enters a planning session instead of immediately editing files.
 
 ### Cowork skill
 
