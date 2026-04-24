@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `plugin/skills/fathom/SKILL.md` now carries the full per-turn protocol (script path resolution, session bootstrap, `update_graph.py` invocation, plan flow, approval flow) rather than deferring to the `UserPromptSubmit` hook. Previously, uploading `fathom-plugin.zip` to Cowork (which doesn't fire hooks) produced noisy path and `no_active_session` errors on the first turn while Claude reconstructed the flow. The plugin now works cleanly in both hook-supporting (Claude Code CLI, Claude Desktop Chat tab) and non-hook environments (Cowork).
+
 ## [0.1.0] — 2026-04-24
 
 Initial public release.
