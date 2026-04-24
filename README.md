@@ -34,6 +34,15 @@ On `/fathom:start`, Claude enters a planning session instead of immediately edit
 2. In Claude Desktop → Cowork → **Customize → Skills → Upload**, select the zip.
 3. Start a task and type `/fathom` or say "let's plan this." Claude enters the protocol.
 
+### Claude Desktop (alternative)
+
+If you use Claude Desktop's Chat tab and prefer uploading a plugin over running marketplace commands:
+
+1. Download `fathom-plugin.zip` from the latest [release](https://github.com/ma-ziwei/fathom-mode-for-claude/releases).
+2. In Claude Desktop → **Customize → Plugins → "+"**, select the zip.
+
+Same plugin as the marketplace install, just via Desktop's upload UI.
+
 ## Example session
 
 A real turn looks like this. Score block first, then a three-part response (understanding restate, one insight, one question):
