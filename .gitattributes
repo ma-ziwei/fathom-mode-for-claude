@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Explicit binaries — git's auto-detection is reliable but be defensive
+# for the artifact types we know we ship.
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

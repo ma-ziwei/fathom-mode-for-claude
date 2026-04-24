@@ -32,7 +32,7 @@ Opus 4.7 already handles ambiguity better than its predecessors: Anthropic's own
    - **User-scoped**: `/plugin marketplace add <absolute-path-to-repo>/plugin` and then enable from `/plugin`.
 3. Verify: `/help` should now list `fathom:start`, `fathom:status`, `fathom:plan`, `fathom:exit` under "Plugin commands."
 
-Requires Python 3 on `PATH` (`python3` invocation). No third-party Python dependencies — everything in `scripts/` runs on the standard library.
+Requires Python 3 on `PATH` (`python3` invocation). On macOS 12.3+ the system no longer ships Python; install via `brew install python3` (or pyenv) if `python3 --version` fails. No third-party Python dependencies — everything in `scripts/` runs on the standard library.
 
 ### Cowork
 
