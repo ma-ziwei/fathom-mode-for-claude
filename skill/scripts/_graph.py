@@ -25,7 +25,6 @@ from _models import (
     Edge,
     EdgeSource,
     Node,
-    NodeType,
     RelationType,
 )
 

@@ -132,7 +132,7 @@ def main() -> None:
     now_iso = datetime.now(timezone.utc).isoformat()
     warnings: list = []
 
-    # Build the fresh state with all current fields (additive over Day 1/2)
+    # Build the fresh state with all current fields
     state = {
         "session_id": session_id,
         "task": task,
@@ -145,7 +145,6 @@ def main() -> None:
         "edges": [],
         "dialogue": [],
         "verified_causal_pairs": {},
-        "purpose_markers_log": [],
         "extraction_warnings": [],
     }
 

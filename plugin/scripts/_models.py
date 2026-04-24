@@ -2,8 +2,8 @@
 Data models for the Fathom Mode plugin — enums + dataclasses.
 
 Concept inspired by prior research (SSRN paper + prior library); no code copied.
-Used by _scoring.py, _graph.py (Day 3+), _compiler.py (Day 4+) and the
-script entry points (init_session, update_graph) for state-file round-trip.
+Used by _scoring.py, _graph.py, _compiler.py and the script entry points
+(init_session, update_graph) for state-file round-trip.
 
 String-valued enums (`str, Enum`) make JSON serialization trivial:
 `json.dumps(asdict(node))` works directly without custom encoders.
@@ -11,7 +11,7 @@ String-valued enums (`str, Enum`) make JSON serialization trivial:
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from enum import Enum
 
 
@@ -77,7 +77,6 @@ class Node:
     dimension: str            # Dimension value
     node_type: str            # NodeType value
     confidence: float = 0.8
-    secondary_dimensions: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -91,7 +90,6 @@ class Node:
             dimension=d["dimension"],
             node_type=d.get("node_type", "fact"),
             confidence=d.get("confidence", 0.8),
-            secondary_dimensions=d.get("secondary_dimensions", []),
         )
 
 

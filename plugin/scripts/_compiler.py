@@ -18,7 +18,7 @@ Sections [3] / [4] / [5] are auto-omitted when empty. Keeps short sessions
 concise.
 
 Cut from ftg/compiler.py (intentionally not ported):
-  - BIAS_CORRECTION_MAP / BIAS_LABELS (Day 5 polish if compile reads thin)
+  - BIAS_CORRECTION_MAP / BIAS_LABELS
   - attachment_contexts rendering (no attachment handling in MVP)
   - dimension_states / dimension_assessment rendering
   - _render_coverage_summary

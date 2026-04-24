@@ -68,8 +68,8 @@ def save_state(state: dict) -> None:
     UTF-16 surrogates (e.g., \\ud83d without a paired low surrogate), which
     UTF-8 cannot encode - the resulting UnicodeEncodeError breaks the
     write. Sources of lone surrogates in our pipeline:
-      - Claude writes the per-turn JSON payload via Bash heredoc (commit
-        2bbca50); \\uXXXX escapes for supplementary-plane chars can split
+      - Claude writes the per-turn JSON payload via Bash heredoc;
+        \\uXXXX escapes for supplementary-plane chars can split
         surrogate pairs, leaving lone surrogates after json.loads.
       - User pastes mojibake from a corrupted source.
     ensure_ascii=True escapes everything non-ASCII as \\uXXXX in the file,

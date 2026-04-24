@@ -12,7 +12,6 @@ Each mass is computed deterministically from the Intent Graph state:
                     weighted heavier for DEPTH dims (why/who/how) than SURFACE
                     dims (what/when/where).
   - grounding_mass: sum over verified causal pairs (PARTIAL=2.8, VERIFIED=3.4).
-                    Empty Day 2 (CFP detection lands Day 4).
   - entropy_reg:    0.15 * normalized Shannon entropy across credited mass per
                     dim. Rewards spreading nodes across multiple dims.
 
@@ -80,7 +79,6 @@ def compute_fathom_breakdown(nodes, verified_causal_pairs=None):
     Args:
         nodes: list of objects with a `.dimension` attribute (e.g. Node from _models).
         verified_causal_pairs: optional dict {(src_id, tgt_id): "partial"|"verified"}.
-            Day 2 always passes empty {}; Day 4 wires real causal edges.
 
     Returns:
         BreakdownResult with fathom_score in [0.0, 1.0).

@@ -2,11 +2,11 @@
 """
 Per-turn graph update + Score recomputation.
 
-Phase 2+3 reality: full Intent Graph operations via _graph.IntentGraph
-(CFP downgrade enforced at add_edge), causal marker detection on user
-input via _causal (USER_EXPLICIT CAUSAL edges only), real next-target
-dimension via _dimensions.find_target_dimension. Score still computed
-by _scoring.compute_fathom_breakdown over the graph's node list.
+Full Intent Graph operations via _graph.IntentGraph (CFP downgrade
+enforced at add_edge), causal marker detection on user input via _causal
+(USER_EXPLICIT CAUSAL edges only), next-target dimension via
+_dimensions.find_target_dimension. Score computed by
+_scoring.compute_fathom_breakdown over the graph's node list.
 
 CLI:
     update_graph.py --user-input "<verbatim user message>"
@@ -37,7 +37,7 @@ from _dimensions import find_target_dimension
 from _causal import detect_causal_markers, match_markers_to_nodes
 
 
-# Day 1 stub fallback cycle — used only when --nodes is absent
+# Fallback dim cycle — used only when Claude's --nodes extraction is absent.
 _DIMENSION_CYCLE = ["what", "why", "how", "who", "when", "where"]
 
 
@@ -71,7 +71,7 @@ def _prefix_node_ids(nodes: list[Node], turn_count: int) -> list[Node]:
 
 
 def _stub_fallback_node(user_input: str, turn_count: int) -> Node:
-    """Day 1 stub fallback — used when Claude doesn't pass --nodes."""
+    """Fallback node — used when Claude doesn't pass --nodes."""
     new_turn = turn_count + 1
     dim = _DIMENSION_CYCLE[(new_turn - 1) % len(_DIMENSION_CYCLE)]
     return Node(
@@ -234,7 +234,7 @@ def main() -> None:
     for ed in state.get("edges", []):
         graph.add_edge(Edge.from_dict(ed))
 
-    # --- Parse Claude's extraction (or fall back to Day 1 stub) ---
+    # --- Parse Claude's extraction (or fall back to stub) ---
     new_nodes = _parse_nodes_arg(nodes_json, state.get("turn_count", 0), warnings)
     if not new_nodes:
         new_nodes = [_stub_fallback_node(user_input, state.get("turn_count", 0))]
@@ -244,16 +244,9 @@ def main() -> None:
 
     # --- Causal marker detection on user input → USER_EXPLICIT CAUSAL edges ---
     detections = detect_causal_markers(user_input)
-    purpose_markers = [d for d in detections if d["type"] == "purpose"]
     causal_edges = match_markers_to_nodes(detections, graph.get_all_nodes())
     for e in causal_edges:
         graph.add_edge(e)  # CFP downgrade enforced inside add_edge
-
-    # Log purpose markers separately (CFP discipline: never edged)
-    if purpose_markers:
-        existing_purpose_log = list(state.get("purpose_markers_log", []))
-        existing_purpose_log.extend(purpose_markers)
-        state["purpose_markers_log"] = existing_purpose_log
 
     # --- Score over the updated graph ---
     verified_causal = state.get("verified_causal_pairs", {})  # later wires real verified pairs
@@ -318,7 +311,6 @@ def main() -> None:
         "task_type": state.get("task_type", "general"),
         "extraction_warnings": warnings,
         "causal_edges_added": len(causal_edges),
-        "purpose_markers_logged": len(purpose_markers),
     }, ensure_ascii=False))
 
 

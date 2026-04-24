@@ -51,7 +51,6 @@ Always exits 0 to avoid blocking the user prompt on hook errors.
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -274,7 +273,7 @@ def _build_session_init_reminder(task: str, *, source: str) -> str:
         "nodes": [{
             "id": "n1", "dimension": "what", "node_type": "fact",
             "content": "...", "raw_quote": "...",
-            "confidence": 0.9, "secondary_dimensions": [],
+            "confidence": 0.9,
         }],
     })
 

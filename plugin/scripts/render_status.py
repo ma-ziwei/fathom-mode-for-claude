@@ -3,8 +3,7 @@
 Render the active Fathom session as user-facing markdown.
 
 Output goes to stdout; the /fathom:status command presents it verbatim.
-Day 1: bar chart + dimension counts + brief dialogue summary.
-Day 2+: richer graph rendering once real edges/causal relationships exist.
+Renders a bar chart + dimension counts + brief dialogue summary.
 """
 
 from __future__ import annotations

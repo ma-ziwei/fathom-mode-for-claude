@@ -34,17 +34,12 @@ DEFAULT_DIM_PRIORITY: dict[str, float] = {
 def find_target_dimension(
     graph: IntentGraph,
     waived_dimensions: set[str] | None = None,
-    task_type: str = "general",
 ) -> str:
     """
     Pick the dimension with highest (priority_weight / (count + 1)) ratio.
 
     Intuition: a dim with high priority and low coverage rises to the top.
     Adding 1 to count avoids division by zero when a dim has no nodes yet.
-
-    The `task_type` arg is currently unused — kept for signature
-    compatibility with ftg's version (where task_type can override
-    priorities). Reserved for future task-aware tweaks.
 
     Returns the dim name as a lowercase string ("who" / "what" / etc.).
     Defaults to "how" if every candidate is waived (degenerate).
