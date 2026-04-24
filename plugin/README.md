@@ -2,7 +2,7 @@
 
 > The Claude Code distribution of Fathom Mode. For Cowork (desktop app), see the standalone skill at `../skill/` in this repo. Both ship the same protocol; the plugin layers a per-turn `UserPromptSubmit` hook on top for stronger orchestration in Claude Code CLI.
 
-> **Status — Day 1 skeleton.** Plumbing is real and end-to-end. Algorithms (Score, Intent Graph, Compiler, Causal Fathom Protocol) are stubs returning plausible placeholder data. Days 2–5 fill in the real logic. Don't install for production use yet.
+> **Status — hackathon build (April 21–27, 2026).** Plumbing is real and end-to-end; the Score, Intent Graph, Compiler, and Causal Fathom Protocol are implemented from scratch in `scripts/`. Treat this as a working preview — APIs and on-disk state shape may still change before a tagged release.
 
 ## What is Fathom Mode
 
@@ -24,7 +24,7 @@ Opus 4.7 already handles ambiguity better than its predecessors: Anthropic's own
 
 ## Install
 
-### Claude Code (primary, Day 1 verified surface)
+### Claude Code (primary, hackathon-verified surface)
 
 1. Clone this repo to any local path. The plugin directory is `<repo>/plugin/`.
 2. In Claude Code, install via the local path. Two options:
@@ -32,7 +32,7 @@ Opus 4.7 already handles ambiguity better than its predecessors: Anthropic's own
    - **User-scoped**: `/plugin marketplace add <absolute-path-to-repo>/plugin` and then enable from `/plugin`.
 3. Verify: `/help` should now list `fathom:start`, `fathom:status`, `fathom:plan`, `fathom:exit` under "Plugin commands."
 
-Requires Python 3 on `PATH` (`python3` invocation). No third-party Python dependencies for the Day 1 stub.
+Requires Python 3 on `PATH` (`python3` invocation). No third-party Python dependencies — everything in `scripts/` runs on the standard library.
 
 ### Cowork
 
@@ -95,18 +95,16 @@ Single plugin package containing four kinds of components:
 - **Hook** (`hooks/inject_fathom_context.py`) — `UserPromptSubmit` hook that self-gates on the session state file. When a session is active, injects a short orientation reminder via `additionalContext`. When inactive, exits silently.
 - **Scripts** (`scripts/*.py`) — pure-Python deterministic logic for session state, graph updates, score, status rendering, the plan step, exit. No LLM calls; Claude itself does the per-turn extraction work and shells out to the scripts for the deterministic operations.
 
-Session state lives at `${CLAUDE_PLUGIN_DATA}/active_session.json`, isolated per Claude Code install.
+Session state lives at `~/.fathom-mode/active_session.json` — a single active session per machine, deliberately shared between this plugin and the standalone Cowork skill so a session started in one environment can be continued in the other. The `${CLAUDE_PLUGIN_DATA}` env var is intentionally ignored; see `scripts/session_state.py` for the rationale (it isn't propagated to Bash-tool subprocesses, which would split state across two paths).
 
 ## Origin & Rule 1 Compliance
 
 This concept originates from prior publications — the SSRN paper *Fathom-then-Generate: A Reversible Intent Alignment Protocol* and the Substack series on Intent Alignment by Lawrence Ma. This repository is a **fresh implementation built entirely during the Built with Opus 4.7 hackathon**, April 21–27, 2026 (Pacific Time). The prior `ftg` Python library at `github.com/ma-ziwei/fathom-mode` served as conceptual reference only; **no code was copied** — concepts and architectural ideas are inspiration, not provenance.
 
-## Roadmap (Days 2–5)
+## Roadmap
 
-- **Day 2** — real Fathom Score formula (`1 - exp(-0.10 * latent_depth)`, asymptotic 100%, dimension-aware diminishing returns)
-- **Day 3** — real Intent Graph operations (NetworkX-free, dict-backed, with the CFP downgrade rule baked into edge insertion)
-- **Day 4** — real Compiler module (5-section structured intent assembly from the graph) + Causal Fathom Protocol (linguistic causal-marker detection limiting causal edges to user-explicit relationships)
-- **Day 5** — polish, demo recording, cross-platform fixes (Cowork hooks, claude.ai Skill repackaging), README finalization, marketplace submission prep
+- **Implemented** — asymptotic Fathom Score (`1 - exp(-0.10 * latent_depth)`, dimension-aware diminishing returns), dict-backed Intent Graph with the CFP downgrade rule baked into edge insertion, deterministic Compiler that assembles a 5-section structured intent from the graph, Causal Fathom Protocol with linguistic causal-marker detection that limits causal edges to user-explicit relationships, end-to-end `UserPromptSubmit` hook on Claude Code with shared state at `~/.fathom-mode/active_session.json`.
+- **Remaining for tagged release** — embedding-based ambiguity verification (CausalTracker port), demo recording, cross-platform polish for Cowork (hooks may not fire) and claude.ai (no subprocess), marketplace submission prep.
 
 ## License
 

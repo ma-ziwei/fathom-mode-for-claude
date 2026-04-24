@@ -2,15 +2,24 @@
 """
 Initialize a new Fathom Mode session.
 
-Phase 2+3 reality: when Claude emits first-turn nodes via --nodes,
-build a real IntentGraph and compute the initial Score over its nodes.
-When --nodes is absent (the path the hook actually takes today), fall
-back to the Day 1 stub formula (35-55% based on task length).
+When Claude emits first-turn nodes via --nodes, build a real IntentGraph
+and compute the initial Score over its nodes. When --nodes is absent
+(the path the hook actually takes today), state initializes with
+score_pct=0 — turn 1 (update_graph.py) computes the real Score from
+Claude's first-turn extraction. Persisting a non-zero baseline here
+would corrupt the turn-1 delta (update_graph.py would compute it as
+real_score - stub_baseline, producing artificially small or negative
+deltas on the user's first message).
 
 CLI:
     init_session.py --task "<user task>"
                     [--nodes '<JSON array of Node dicts>']
                     [--task-type thinking|creation|execution|learning|general]
+
+Stdin payload (preferred when available — bypasses shell escaping):
+    init_session.py <<'FATHOM_INIT_END'
+    {"task": "...", "nodes": [...], "task_type": "..."}
+    FATHOM_INIT_END
 
 Output JSON includes a pre-rendered `score_block_str` so the caller
 (SKILL.md instructs Claude here) can use it verbatim — no LLM-side
@@ -29,25 +38,13 @@ from session_state import save_state
 from _models import Node
 from _scoring import compute_fathom_breakdown
 from _graph import IntentGraph
+from _dimensions import find_target_dimension
 from update_graph import render_score_block  # shared 2-line bar renderer
-
-
-_ALL_DIMS = ["who", "what", "why", "when", "where", "how"]
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _initial_score_pct_stub(task: str) -> int:
-    """
-    Day 1 stub fallback: longer task descriptions imply more dimensions
-    are pre-filled, so initial score is higher. Floor 35%, cap 55%.
-    Used when --nodes is absent (current hook path takes this every time).
-    """
-    base = len(task.strip())
-    return min(55, max(35, base // 4))
 
 
 def _parse_initial_nodes(nodes_arg: str | None, warnings: list) -> list[Node]:
@@ -82,18 +79,52 @@ def _parse_initial_nodes(nodes_arg: str | None, warnings: list) -> list[Node]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Initialize a Fathom Mode session.")
-    parser.add_argument("--task", required=True, help="The user's task description.")
+    # --task is no longer required at argparse level; a stdin JSON payload
+    # may supply it instead. Validation happens after both sources are read.
+    parser.add_argument("--task", default=None, help="The user's task description.")
     parser.add_argument("--nodes", default=None, help="Optional initial extraction JSON.")
     parser.add_argument("--task-type", default=None,
                         choices=["thinking", "creation", "execution", "learning", "general"],
                         help="Optional task-type classification.")
     args = parser.parse_args()
 
-    task = args.task.strip()
+    # Optional stdin JSON payload (preferred path; overrides args). Mirrors
+    # update_graph.py: SKILL.md / start.md instruct Claude to invoke this
+    # script via Bash heredoc with quoted delimiter (<<'FATHOM_INIT_END')
+    # so apostrophes / em-dashes / dollar signs in the task pass through
+    # literally, no shell escaping required. Read raw bytes and decode as
+    # UTF-8 explicitly so the OS default codec (GBK / cp1252 on Windows)
+    # cannot mangle non-ASCII task text.
+    stdin_payload = None
+    if not sys.stdin.isatty():
+        try:
+            raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+            if raw.strip():
+                stdin_payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            sys.stdout.write(json.dumps({
+                "error": "stdin_parse_failed",
+                "message": f"stdin payload JSON parse failed: {exc}",
+            }))
+            sys.exit(1)
+
+    task = args.task
+    nodes_json = args.nodes
+    task_type = args.task_type
+    if isinstance(stdin_payload, dict):
+        task = stdin_payload.get("task", task)
+        if "nodes" in stdin_payload:
+            nodes_json = json.dumps(stdin_payload["nodes"])
+        task_type = stdin_payload.get("task_type", task_type)
+
+    task = (task or "").strip()
     if not task:
         sys.stdout.write(json.dumps({
             "error": "empty_task",
-            "message": "A non-empty task description is required.",
+            "message": (
+                "A non-empty task description is required "
+                "(via --task arg or stdin JSON payload)."
+            ),
         }))
         sys.exit(1)
 
@@ -106,7 +137,7 @@ def main() -> None:
         "session_id": session_id,
         "task": task,
         "started_at": now_iso,
-        "task_type": args.task_type or "general",
+        "task_type": task_type or "general",
         "turn_count": 0,
         "score_pct": 0,
         "score_breakdown": {"surface_pct": 0, "depth_pct": 0, "bedrock_pct": 0},
@@ -118,13 +149,17 @@ def main() -> None:
         "extraction_warnings": [],
     }
 
-    initial_nodes = _parse_initial_nodes(args.nodes, warnings)
+    initial_nodes = _parse_initial_nodes(nodes_json, warnings)
+
+    # Build the graph (empty if no initial_nodes; populated otherwise).
+    # Same graph used for Score computation AND next-target dimension
+    # selection so init_session is consistent with update_graph.
+    graph = IntentGraph()
+    for n in initial_nodes:
+        graph.add_node(n)
 
     if initial_nodes:
-        # Real path: build graph, compute Score from Claude's extraction
-        graph = IntentGraph()
-        for n in initial_nodes:
-            graph.add_node(n)
+        # Real path: compute Score from Claude's first-turn extraction
         breakdown = compute_fathom_breakdown(graph.get_all_nodes(), {})
         state["nodes"] = [n.to_dict() for n in graph.get_all_nodes()]
         state["score_pct"] = round(breakdown.fathom_score * 100)
@@ -133,23 +168,16 @@ def main() -> None:
             "depth_pct": round(breakdown.depth_penetration * 100),
             "bedrock_pct": round(breakdown.bedrock_grounding * 100),
         }
-    else:
-        # Stub fallback: hook subprocess path takes this every time.
-        # Turn 1 (Claude's first response via update_graph.py) overwrites
-        # with real Score, so the stub is never user-visible.
-        stub_pct = _initial_score_pct_stub(task)
-        state["score_pct"] = stub_pct
-        state["score_breakdown"] = {
-            "surface_pct": stub_pct,
-            "depth_pct": max(0, stub_pct - 20),
-            "bedrock_pct": 0,
-        }
+    # else: state keeps score_pct=0 + zeroed breakdown from initial setup.
+    # Persisting a non-zero stub baseline here would corrupt the turn-1
+    # delta (update_graph.py would compute it as real_score - baseline,
+    # producing artificially small or negative deltas on turn 1).
 
     state["extraction_warnings"] = warnings
     save_state(state)
 
     dims_active = sorted({n.dimension for n in initial_nodes if n.dimension})
-    next_target = next((d for d in _ALL_DIMS if d not in dims_active), "why")
+    next_target = find_target_dimension(graph)
 
     score_block_str = render_score_block(state["score_pct"], state["score_pct"])
 

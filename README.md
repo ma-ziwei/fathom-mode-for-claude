@@ -2,7 +2,7 @@
 
 A planning session protocol for AI interactions. While active, Claude pauses execution and helps you build shared understanding through structured dialogue: restate-understanding + four-style insight + dimension-targeting question, with a visible Fathom Score that climbs as understanding deepens. Compile the session into a plan; review, approve, and only then execute.
 
-> **Status — Day 1 skeleton.** Plumbing is real and end-to-end. Algorithms (Score, Intent Graph, Compiler, Causal Fathom Protocol) are stubs returning plausible placeholder data. Days 2–5 fill in the real logic. Don't install for production use yet.
+> **Status — hackathon build (April 21–27, 2026).** Plumbing is real and end-to-end; the Score, Intent Graph, Compiler, and Causal Fathom Protocol are implemented from scratch in `scripts/`. Treat this as a working preview — APIs and on-disk state shape may still change before a tagged release.
 
 ## Two distributions, one protocol
 

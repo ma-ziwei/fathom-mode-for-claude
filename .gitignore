@@ -9,6 +9,7 @@ __pycache__/
 # Build artifacts
 dist/
 build/
+*.zip
 
 # OS cruft
 .DS_Store

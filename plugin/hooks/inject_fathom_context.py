@@ -444,7 +444,15 @@ def main() -> None:
     state = _read_state()
 
     # 4a: pending-new-task stub set by Behavior 1 -> this message IS the new task.
+    # Guard: if the user typed any other slash command (e.g. /help, /clear,
+    # /plugin install ...) while the pending stub is live, do NOT capture
+    # the slash command as the task. Keep the stub and exit so the slash
+    # command runs normally; the next plain user message will become the
+    # new task. Other /fathom:* commands are already handled by Behavior
+    # 3 above and never reach here.
     if state and state.get("pending_new_task"):
+        if prompt_text.startswith("/"):
+            sys.exit(0)
         if prompt_text and _try_run_init_session(prompt_text):
             _emit(_build_session_init_reminder(prompt_text, source="pending"))
         # If empty prompt (defensive) or init failed: keep stub, no injection.

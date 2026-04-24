@@ -12,6 +12,9 @@ from __future__ import annotations
 import sys
 
 from session_state import require_active
+from _models import Node
+from _graph import IntentGraph
+from _dimensions import find_target_dimension
 
 
 _BAR_WIDTH = 14
@@ -52,7 +55,17 @@ def main() -> None:
     dialogue = state.get("dialogue", [])
 
     counts = _dimension_counts(nodes)
-    next_dim = next((d for d in _ALL_DIMENSIONS if counts[d] == 0), _ALL_DIMENSIONS[0])
+    # Use the same dimension picker update_graph.py uses (priority-based
+    # via _dimensions.find_target_dimension), so /fathom:status's "next
+    # question target" annotation matches the next_target_dimension the
+    # in-session reminder tells Claude to advance.
+    graph = IntentGraph()
+    for nd in nodes:
+        try:
+            graph.add_node(Node.from_dict(nd))
+        except (KeyError, TypeError):
+            continue
+    next_dim = find_target_dimension(graph)
 
     lines: list[str] = []
     lines.append("## Fathom Session Status")

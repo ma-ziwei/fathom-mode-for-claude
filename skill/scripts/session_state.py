@@ -2,9 +2,11 @@
 """
 Shared session-state helper for Fathom Mode scripts.
 
-State lives at ${CLAUDE_PLUGIN_DATA}/active_session.json — a single active session
-per plugin install. Day 2+ may extend to per-Claude-session keying using
-session_id from hook payloads; for Day 1 a single active session is enough.
+State lives at ~/.fathom-mode/active_session.json — a single active
+session per machine, shared across the plugin and the Cowork skill so a
+session started in one environment can be continued in the other.
+See `_state_dir()` below for why CLAUDE_PLUGIN_DATA is deliberately
+ignored.
 
 Cross-platform: pathlib.Path everywhere, UTF-8 reads/writes, no shell-isms.
 """
@@ -12,7 +14,6 @@ Cross-platform: pathlib.Path everywhere, UTF-8 reads/writes, no shell-isms.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -97,7 +98,7 @@ def require_active() -> dict:
     (render_status, compile_plan, update_graph).
     """
     state = load_state()
-    if state is None:
+    if not _is_real_active_session(state):
         sys.stdout.write(json.dumps({
             "error": "no_active_session",
             "message": (

@@ -185,8 +185,13 @@ def main() -> None:
     # for standalone debugging and --help discoverability.
     stdin_payload = None
     if not sys.stdin.isatty():
+        # Read raw bytes and decode as UTF-8 explicitly. sys.stdin.read()
+        # uses the OS default codec (GBK / cp1252 on Windows), which
+        # mangles non-ASCII characters in the heredoc payload (Chinese,
+        # em-dashes, smart quotes, emoji) into surrogate-escaped garbage
+        # that then crashes json.loads or corrupts user_input downstream.
         try:
-            raw = sys.stdin.read()
+            raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
             if raw.strip():
                 stdin_payload = json.loads(raw)
         except json.JSONDecodeError as exc:

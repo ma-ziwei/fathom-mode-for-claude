@@ -23,6 +23,8 @@ phase.
 
 from __future__ import annotations
 
+import re
+
 from _models import Edge, EdgeSource, Node, RelationType
 
 
@@ -57,6 +59,12 @@ def detect_causal_markers(text: str) -> list[dict]:
       2. If no forward match, try backward
       3. Always scan for purpose markers separately
       4. Deduplicate forward/backward detections by (cause, effect) lower
+
+    Match precision: each marker is anchored with \\b word boundaries and
+    re.escape() so substring noise (e.g., "becauseful", "causation",
+    "results infection") cannot trigger a false detection. Multiple
+    occurrences of the same marker in one message are all considered
+    via re.finditer (the original lower.index() returned only the first).
     """
     if not text:
         return []
@@ -67,8 +75,9 @@ def detect_causal_markers(text: str) -> list[dict]:
     # Forward markers: cause MARKER effect
     forward_found = False
     for marker in FORWARD_MARKERS:
-        if marker in lower:
-            idx = lower.index(marker)
+        pattern = re.compile(r"\b" + re.escape(marker) + r"\b")
+        for m in pattern.finditer(lower):
+            idx = m.start()
             cause = _clean_fragment(text[:idx])
             effect = _clean_fragment(text[idx + len(marker):])
             if cause and effect:
@@ -86,8 +95,9 @@ def detect_causal_markers(text: str) -> list[dict]:
     # Backward markers: effect MARKER cause (skipped if forward already found)
     if not forward_found:
         for marker in BACKWARD_MARKERS:
-            if marker in lower:
-                idx = lower.index(marker)
+            pattern = re.compile(r"\b" + re.escape(marker) + r"\b")
+            for m in pattern.finditer(lower):
+                idx = m.start()
                 effect = _clean_fragment(text[:idx])
                 cause = _clean_fragment(text[idx + len(marker):])
                 if cause and effect:
@@ -103,8 +113,9 @@ def detect_causal_markers(text: str) -> list[dict]:
 
     # Purpose markers: action MARKER goal — collected separately, never causal
     for marker in PURPOSE_MARKERS:
-        if marker in lower:
-            idx = lower.index(marker)
+        pattern = re.compile(r"\b" + re.escape(marker) + r"\b")
+        for m in pattern.finditer(lower):
+            idx = m.start()
             action = _clean_fragment(text[:idx])
             goal = _clean_fragment(text[idx + len(marker):])
             if goal:
