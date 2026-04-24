@@ -17,7 +17,7 @@ Fathom Mode is a planning session mode for Claude Code and Cowork. It helps Clau
 ### Claude Code plugin
 
 ```
-/plugin marketplace add ma-ziwei/fathom-mode-for-claude
+/plugin marketplace add https://github.com/ma-ziwei/fathom-mode-for-claude.git
 /plugin install fathom@fathom-mode
 /fathom:start refactor this React component so it's easier to maintain
 ```
@@ -130,6 +130,7 @@ Claude.ai web and mobile are out of scope — neither environment supports the s
 
 - **Session feels stuck or you want to start over**: `/fathom:exit` (plugin) or ask Claude to end the session (skill), then start fresh.
 - **Score plateaus without a plan-ready hint**: the task may warrant continuing. Just type `plan` — Claude will compile whatever depth you've reached.
+- **Install fails with SSH authentication error**: the shortcut `<owner>/<repo>` form may default to SSH URL. Use the full HTTPS URL instead (as shown in Quick start above).
 - **Plugin command not found after install**: run `/plugin install fathom@fathom-mode` again from inside a Claude Code session, verify with `/help`.
 - **Skill not triggering in Cowork**: type `/fathom` explicitly instead of relying on natural-language trigger.
 
