@@ -31,7 +31,7 @@ from dataclasses import dataclass
 
 
 # ---------------------------------------------------------------------------
-# Constants (faithful port — Lawrence's designed signature, do not approximate)
+# Constants (faithful port — designed signature, do not approximate)
 # ---------------------------------------------------------------------------
 
 SURFACE_DIMENSIONS = {"what", "when", "where"}
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         f"1 what node should land ~10%, got {r.fathom_score:.4f}"
     )
 
-    # 3. 6-dim first turn → ~0.55-0.60 (Lawrence's expected: ~0.585-0.591)
+    # 3. 6-dim first turn → ~0.55-0.60 (expected: ~0.585-0.591)
     nodes_6 = [
         _FakeNode("what"),
         _FakeNode("when"),

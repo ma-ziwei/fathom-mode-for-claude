@@ -83,7 +83,7 @@ def _emit(reminder_text: str | None) -> None:
 # State machine reminder builders
 #
 # Three INDEPENDENT strings — not a shared template with conditional
-# sections. Per Lawrence: Claude's context for the current state should
+# sections. Design invariant: Claude's context for the current state should
 # contain only that state's reminder, nothing else.
 #
 # Wording principles:
