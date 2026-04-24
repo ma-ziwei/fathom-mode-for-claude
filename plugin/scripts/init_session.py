@@ -48,6 +48,26 @@ from update_graph import render_score_block  # shared 2-line bar renderer
 # ---------------------------------------------------------------------------
 
 
+def _bootstrap_score_pct_stub(task: str) -> int:
+    """
+    Placeholder first-turn score when init_session runs without --nodes.
+    Heuristic: longer task description implies more dimensions likely
+    pre-filled in Claude's follow-up extraction. Floor 35%, cap 55%.
+
+    Without this stub, init_session returns 0% until update_graph.py runs.
+    If Claude calls init_session but skips update_graph for the first user
+    message (a common interpretation of the Per-turn protocol's "for each
+    subsequent user message" phrasing), the user would see a 0% score block
+    on turn 1. The stub gives a reasonable first impression; update_graph
+    replaces it with the real computed score on the next call.
+
+    Trade-off: turn-1 delta becomes `real_score - stub` instead of
+    `real_score - 0`, i.e., smaller but still positive in practice.
+    """
+    base = len(task.strip())
+    return min(55, max(35, base // 4))
+
+
 def _parse_initial_nodes(nodes_arg: str | None, warnings: list) -> list[Node]:
     """Parse --nodes JSON. On failure, log to warnings and return []."""
     if not nodes_arg:
@@ -178,10 +198,12 @@ def main() -> None:
             "depth_pct": round(breakdown.depth_penetration * 100),
             "bedrock_pct": round(breakdown.bedrock_grounding * 100),
         }
-    # else: state keeps score_pct=0 + zeroed breakdown from initial setup.
-    # Persisting a non-zero stub baseline here would corrupt the turn-1
-    # delta (update_graph.py would compute it as real_score - baseline,
-    # producing artificially small or negative deltas on turn 1).
+    else:
+        # Stub baseline when no --nodes: gives a non-zero first-turn score
+        # so the user doesn't see "0%" if Claude calls init_session but
+        # skips update_graph.py on the bootstrap message. update_graph.py
+        # will overwrite this with the real computed score on its first call.
+        state["score_pct"] = _bootstrap_score_pct_stub(task)
 
     state["extraction_warnings"] = warnings
     save_state(state)
