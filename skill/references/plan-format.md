@@ -70,8 +70,14 @@ Always end with this exact paragraph:
 
 ## Compiler behavior (`scripts/_compiler.py`)
 
-- **Section 1 (Intent Summary)** uses the highest-confidence INTENT-type or GOAL-type nodes. Falls back to a paraphrase of the original task if no high-confidence intent nodes exist.
-- **Section 2 (Structured Context)** iterates over `Dimension` enum values; for each, lists the nodes whose `dimension` field matches. Limited to ~6 items per dimension.
-- **Section 3 (Validated Relationships)** only includes edges with `relation_type=CAUSAL` AND `source_type=USER_EXPLICIT`. This is the CFP guarantee — no Claude-inferred causation appears here.
-- **Section 4 (Steps)** is derived from GOAL-type and CONSTRAINT-type nodes via a simple template. Task_type-aware variants (thinking / creation / execution / learning) are a future refinement.
-- **Section 5 (Approval)** is pure boilerplate, never varies.
+Note: `_compiler.py` does NOT output the plan template above. It outputs a **structured intent** that Claude reads as input, then translates into the user-facing plan. The two 5-section structures are related but not identical — `_compiler.py` sections are the raw material; the plan template sections are the final artifact.
+
+Preceded by a brief instruction header (and an optional task-type directive when set), the compiler produces 5 numbered sections:
+
+1. **Task Anchor** — the user's original request verbatim.
+2. **User Expression & System Understanding** — nodes grouped by `raw_quote`, each listed with its extracted `content`.
+3. **User-Explicit Causal Relationships** — only edges with `relation_type=CAUSAL` AND `source_type=USER_EXPLICIT`. This is the CFP guarantee: no algorithm-inferred causation appears. Omitted if none.
+4. **Constraints & Conflicts** — CONSTRAINT-type nodes plus same-dim CONTRADICTION edges. Omitted if none.
+5. **System-Inferred Supplements** — nodes without a `raw_quote` anchor. Omitted if none.
+
+The Intent Graph → structured intent path is deterministic (same graph always produces the same output). Claude then writes the user-facing plan (template above) from the structured intent; that step is non-deterministic, which is why the approval flow lets you reject or revise before execution.

@@ -1,0 +1,14 @@
+{
+  "name": "fathom-mode",
+  "owner": {
+    "name": "Lawrence Ma"
+  },
+  "plugins": [
+    {
+      "name": "fathom",
+      "source": "./plugin",
+      "description": "Planning session protocol for Claude Code. Enter Fathom Mode to build shared understanding through structured dialogue before execution.",
+      "version": "0.1.0"
+    }
+  ]
+}

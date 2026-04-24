@@ -1,84 +1,151 @@
-# Fathom Mode
+# Fathom Mode for Claude
 
-A planning session protocol for AI interactions. While active, Claude pauses execution and helps you build shared understanding through structured dialogue: restate-understanding + four-style insight + dimension-targeting question, with a visible Fathom Score that climbs as understanding deepens. Compile the session into a plan; review, approve, and only then execute.
+Pause execution. Clarify intent. Then let Claude act from an approved plan.
 
-> **Status — hackathon build (April 21–27, 2026).** Plumbing is real and end-to-end; the Score, Intent Graph, Compiler, and Causal Fathom Protocol are implemented from scratch in `scripts/`. Treat this as a working preview — APIs and on-disk state shape may still change before a tagged release.
+Fathom Mode is a planning session mode for Claude Code and Cowork. It helps Claude restate its understanding, surface missing details, ask one targeted follow-up at a time, and compile the conversation into a structured plan before executing complex coding or computer-use tasks.
+
+## What Claude does in Fathom Mode
+
+- **Restates its understanding** so you can catch wrong assumptions before execution starts.
+- **Surfaces missing details and ambiguity** instead of silently guessing.
+- **Asks one targeted follow-up per turn** to deepen the task along the least-covered dimension.
+- **Tracks understanding with a visible Fathom Score** so the planning session feels like progress, not endless chatting.
+- **Compiles the session into a structured plan** you review and approve before Claude executes.
+
+## Quick start
+
+### Claude Code plugin
+
+```
+/plugin marketplace add ma-ziwei/fathom-mode-for-claude
+/plugin install fathom@fathom-mode
+/fathom:start refactor this React component so it's easier to maintain
+```
+
+Claude enters a planning session instead of immediately editing files. Use `/fathom:status` to see current understanding, `/fathom:plan` when you want a structured plan, `/fathom:exit` to leave.
+
+### Cowork skill
+
+1. Clone this repo, or download `fathom-skill.zip` from the latest [release](https://github.com/ma-ziwei/fathom-mode-for-claude/releases).
+2. In Claude Desktop → Cowork → **Customize → Skills → Upload**, select the zip.
+3. Start a task and type `/fathom` or say "let's plan this." Claude enters the protocol.
+
+## Example session
+
+A real turn looks like this. Score block first, then a three-part response (understanding restate, one insight, one question):
+
+```
+You:  Build a dashboard for tracking model eval runs.
+
+Claude:
+      Fathom Score
+      ██████░░░░░░░░ 43% (+43)
+
+      I'm reading this as a tool you'd run locally alongside your
+      experiments — single user, not a shared service, no auth layer.
+      Say if that's off.
+
+      One thing worth flagging: "dashboard" is doing a lot of work
+      in this sentence. Live-monitoring (refresh every few seconds,
+      current job status, resource usage) is a weekend afternoon;
+      post-run reporting (compare N completed runs, sort by metrics,
+      export tables) is a different project with different trade-offs.
+      The word is the same, the code is not.
+
+      Which matters more — watching runs in flight, or comparing them
+      after they finish?
+
+You:  Comparing after, mostly. But I'd like a small glance panel for
+      what's currently running — not the focus, just a corner.
+
+      ... (several turns later, Score ~75%)
+
+      💡 Ready to plan? Reply plan.
+
+You:  plan
+
+Claude: [runs compile_plan.py — produces a 5-section structured plan
+         covering task anchor, user expression + system understanding,
+         explicit causal relationships, constraints + conflicts, and
+         system-inferred supplements]
+
+      Reply approve to proceed with this plan, reject to discard, or
+      describe what to change.
+
+You:  approve
+
+Claude: [executes from the compiled plan — files, commands, grounded
+         in every dimension of the session]
+```
+
+## How Fathom Mode works
+
+While a task is in Fathom Mode, Claude does not immediately execute it. Each turn follows a three-part rhythm:
+
+1. A short **understanding restate** with any assumptions surfaced explicitly.
+2. One **insight** — supplementing a missing dimension, clarifying an ambiguity, correcting a misconception, or reframing your angle.
+3. One **targeted follow-up question** advancing the dimension least covered so far.
+
+The visible **Fathom Score** climbs with each in-session turn — fast early, exponentially diminishing, asymptotic to (but never reaching) 100%. It's a gauge of dialogue depth, not an objective measure of truth.
+
+When you're ready, `plan` compiles the session into a structured plan. The compile is **deterministic**: the same Intent Graph always produces the same plan, with no LLM call in the middle. Review it, approve it, and only then does Claude execute. After approval, Claude acts from the compiled plan, reducing ambiguity-driven misfires and rework on complex multi-step tasks.
+
+If you ask something tangential mid-session (a quick definition, an unrelated question), Claude answers directly — Fathom Mode is an active session, not a cage. The protocol resumes when the task resumes.
 
 ## Two distributions, one protocol
 
-| Distribution | For | Where to install | Per-turn reinforcement |
-|---|---|---|---|
-| [`plugin/`](plugin/) | Claude Code (terminal / IDE) users | `/plugin install <repo>/plugin` | `UserPromptSubmit` hook fires every turn |
-| [`skill/`](skill/) | Cowork (desktop app) users | Repackage as a Cowork skill bundle and install via Settings → Skills | Skill body persists in context (no hook; Cowork doesn't support hooks per Anthropic issues #41845, #27398) |
+| Distribution | Use when | Install |
+|---|---|---|
+| **Claude Code plugin** | You use Claude Code in terminal or IDE | `/plugin install fathom@fathom-mode` |
+| **Cowork skill** | You use Claude Cowork desktop | Upload skill bundle in Customize → Skills |
 
-Both deliver the same deterministic Score / compile pipeline and the same protocol vocabulary (`plan` / `approve` / `reject` / `execute` + four insight styles `supplement` / `clarify` / `correct` / `reframe`). Pick by environment.
+Both share the same session state (`~/.fathom-mode/active_session.json`) and the same deterministic plan compiler. A session you start in Cowork can be continued in Claude Code on the same machine, and vice versa.
 
-For Claude.ai web / mobile, neither distribution applies (no subprocess available in browser sandbox). Out of scope for this project.
+**The skill is not a lesser version of the plugin.** It runs the full protocol — same scripts, same Intent Graph, same deterministic compile, same four-style insight palette. The only difference is how the per-turn reminder reaches Claude: the plugin uses a `UserPromptSubmit` hook; the skill relies on Claude holding the protocol in context. In practice, sessions run in Cowork feel just as coherent as sessions in Claude Code. If you live in Cowork, install the skill — you're getting Fathom Mode in full.
 
-## Quick start — Claude Code plugin
+If you use both environments, install both. State is shared on a single machine, so you can start a session in one and finish it in the other.
 
-1. Clone this repo to any local path.
-2. In Claude Code: `/plugin install <absolute-path-to-repo>/plugin`
-3. Verify: `/help` lists `fathom:start` / `fathom:status` / `fathom:plan` / `fathom:exit`.
-4. Start a session: `/fathom:start design a Lotka-Volterra visualizer` (or whatever your task).
+## Why use it
 
-See [`plugin/README.md`](plugin/README.md) for plugin-specific details (architecture, hook design, install variants).
+Fathom Mode is most useful for:
 
-## Quick start — Cowork skill
+- Ambiguous tasks where you're not sure what you want yet
+- Multi-step coding work where misunderstanding early compounds late
+- Computer-use tasks with long side-effect chains
+- High-stakes refactors, migrations, or new-system design
 
-1. Clone this repo to any local path.
-2. Repackage `skill/` as a Cowork skill bundle (per Cowork's skill installation flow).
-3. Install in Cowork via Settings → Skills.
-4. Trigger by saying "let's plan this" / "fathom mode" or by typing `/fathom` in chat.
+It is not meant for simple factual questions, fully specified one-shot commands, or cases where you want Claude to answer immediately. Don't use it for "what does this function do" — use it for "I want to replace this architecture."
 
-The skill auto-discovers its bundled scripts and uses Bash to invoke them. State lives at `~/.fathom-mode/active_session.json` — shared with the plugin, so a session started in Cowork can be continued in Claude Code (and vice versa) on the same machine.
+Most weak LLM output comes from ambiguous input, and Opus already handles ambiguity well on its own. Fathom Mode is a **layered complement** to the model's judgment, not a replacement — it gives you a structured dialogue surface for the tasks where a few minutes of intent-clarification saves hours of rework.
 
-## What is Fathom Mode
+## Requirements
 
-A **planning session mode** for AI interactions. While active, Claude pauses execution and runs a deliberate three-part dialogue per turn:
+- **Claude Code** (terminal or IDE) for the plugin distribution
+- **Claude Cowork** (desktop app) for the skill distribution
+- **Python 3** available as `python3` on your PATH
 
-- **Understanding restate** — Claude reflects back what it has taken from your message, including any assumptions, so you can catch misinterpretations early
-- **One insight** — supplements a missing dimension, clarifies an ambiguity, corrects a technical misconception, or reframes your angle
-- **One targeted follow-up question** — advancing one dimension of understanding the dialogue has not yet covered
+Claude.ai web and mobile are out of scope — neither environment supports the subprocess invocations Fathom Mode relies on.
 
-A **Fathom Score** climbs visibly with each in-session turn — fast initial gain, exponentially diminishing returns, asymptotic to (but never reaching) 100%. When you're ready, you say `/fathom:plan` (plugin) or "plan" (skill) and the session is rendered into a plan you can review, refine, and approve before any execution begins.
+## Troubleshooting
 
-The plan-drafting step is deterministic. The same Intent Graph always produces the same plan, no LLM call in between, fully auditable.
+- **Session feels stuck or you want to start over**: `/fathom:exit` (plugin) or ask Claude to end the session (skill), then start fresh.
+- **Score plateaus without a plan-ready hint**: the task may warrant continuing. Just type `plan` — Claude will compile whatever depth you've reached.
+- **Plugin command not found after install**: run `/plugin install fathom@fathom-mode` again from inside a Claude Code session, verify with `/help`.
+- **Skill not triggering in Cowork**: type `/fathom` explicitly instead of relying on natural-language trigger.
 
-## Why it exists
+## Origin
 
-Most weak LLM output comes from ambiguous user input. The conventional answer is "write better prompts," but that pushes the burden onto the user without giving them a structure to think in. Fathom Mode front-loads intent-structuring as a first-class protocol — a discrete block of work that separates "figuring out what to do" from "doing it."
+Fathom Mode originates from Lawrence Ma's prior work on intent alignment — the SSRN paper *Fathom-then-Generate: A Reversible Intent Alignment Protocol* and the [Intent Alignment Substack series](https://intentalignment.substack.com). This repository is a Claude-native implementation that adapts the original concepts — Intent Graph, Fathom Score, deterministic compile — into a planning workflow for Claude Code and Cowork. Compared with the original reflective Python library, this version is optimized for action-oriented planning sessions: clarify the task, compile a plan, approve, then execute.
 
-Opus 4.7 already handles ambiguity better than its predecessors: Anthropic's own guidance is *"Specify the task up front, in the first turn. Ambiguous prompts conveyed progressively across many turns tend to reduce both token efficiency and, sometimes, overall quality."* Fathom Mode helps users get to that well-specified first turn — it's a **layered complement** to Opus 4.7's adaptive thinking, not a replacement for it. When you ask something tangential mid-session, Claude correctly answers it directly without forcing it through the protocol; that's the model's judgment, by design.
+## Architecture
 
-## Architecture (brief)
+Fathom Mode is built around a deterministic Intent Graph and compiler. Claude supplies language understanding and natural dialogue; Python scripts maintain graph state, score progress, and render the final plan. The Claude Code plugin reinforces the protocol with a `UserPromptSubmit` hook that injects a per-turn reminder; the Cowork skill carries the same protocol instructions via skill content (Cowork doesn't support hooks).
 
-Both distributions share the same Python algorithm core in `scripts/`:
-- `_models.py` — Node / Edge / Dimension / NodeType / RelationType / EdgeSource enums + dataclasses
-- `_graph.py` — IntentGraph storage with Causal Fathom Protocol downgrade enforced at edge insertion
-- `_dimensions.py` — 6W priority + next-target dimension selector
-- `_causal.py` — User-explicit causal marker detection
-- `_scoring.py` — Fathom Score formula (asymptotic, dimension-aware)
-- `_compiler.py` — 5-section structured intent renderer
-- `init_session.py` / `update_graph.py` / `compile_plan.py` / `exit_session.py` — entry points
+For module-level details and design rationale, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-The plugin layers on:
-- `hooks/inject_fathom_context.py` — `UserPromptSubmit` hook that injects per-turn reminders
-- `commands/*.md` — slash command bodies for explicit entry points
-- `skills/fathom/SKILL.md` + `references/` — reference material for Claude
+## Contributing
 
-The skill layers on:
-- `SKILL.md` (body absorbs what the plugin's hook delivers per turn — turn-protocol instructions live in the skill body since the hook isn't available)
-- `references/` — same reference docs as the plugin
-- `scripts/` — duplicated copy of the plugin's scripts for self-contained operation
-
-Script duplication between `plugin/scripts/` and `skill/scripts/` is intentional — simpler than symlinking or clever-sharing at this scope. When updating algorithm code, update both copies.
-
-State path is shared (`~/.fathom-mode/active_session.json`) so sessions migrate seamlessly between environments on the same machine.
-
-## Origin & Rule 1 Compliance
-
-This concept originates from prior publications — the SSRN paper *Fathom-then-Generate: A Reversible Intent Alignment Protocol* and the Substack series on Intent Alignment by Lawrence Ma. This repository is a **fresh implementation built entirely during the Built with Opus 4.7 hackathon**, April 21–27, 2026 (Pacific Time). The prior `ftg` Python library at `github.com/ma-ziwei/fathom-mode` served as conceptual reference only; **no code was copied** — concepts and architectural ideas are inspiration, not provenance.
+Issues and pull requests are welcome. Bug reports, install problems, and examples of confusing Fathom sessions are especially useful. For larger features, please open an issue first — Fathom Mode isn't a typical feature library, and many changes affect the protocol's identity.
 
 ## License
 

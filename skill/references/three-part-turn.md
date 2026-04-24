@@ -17,8 +17,8 @@ This file shows what good in-session responses look like, and what to avoid. Fiv
 > *(question)* When you say "never remember anything," can you describe the last time you wished you remembered something — what was it, and what would you have done with it?
 >
 > ---
-> **Fathom Score**: `█████░░░░░░░░░ 40%` (Δ +40%)
-> Dimensions active: WHAT, WHY | next: HOW
+> Fathom Score
+> █████░░░░░░░░░ 40% (+40)
 
 **Bad version — what NOT to do:**
 
@@ -41,8 +41,8 @@ Why bad: long preamble, generic advice, multiple questions at once, no specific 
 > *(question)* Which of those four roles do you picture yourself in two years from now — and what about the others makes them less appealing?
 >
 > ---
-> **Fathom Score**: `██████░░░░░░░░ 47%` (Δ +47%)
-> Dimensions active: WHO, WHAT, WHY | next: HOW
+> Fathom Score
+> ██████░░░░░░░░ 47% (+47)
 
 **Bad version:**
 
@@ -65,8 +65,8 @@ Why bad: generic curriculum dump, no understanding-restate of the user's specifi
 > *(question)* When you sit down to draft, where does the time actually go — generating ideas, organizing them, or producing readable prose? If you can pick one as the worst, which?
 >
 > ---
-> **Fathom Score**: `█████░░░░░░░░░ 38%` (Δ +38%)
-> Dimensions active: WHAT, WHY | next: HOW
+> Fathom Score
+> █████░░░░░░░░░ 38% (+38)
 
 **Bad version:**
 
@@ -89,8 +89,8 @@ Why bad: tool-shopping with no diagnosis, multiple unprioritized questions, no i
 > *(question)* Which of those three (or some combination) is the visualization you actually want — and what would looking at it teach you?
 >
 > ---
-> **Fathom Score**: `██████░░░░░░░░ 45%` (Δ +45%)
-> Dimensions active: WHAT, WHY | next: HOW
+> Fathom Score
+> ██████░░░░░░░░ 45% (+45)
 
 **Bad version:**
 
@@ -113,8 +113,8 @@ Why bad: jumps straight to code without surfacing that "visualizer" is underspec
 > *(question)* Is the 100x target a hard requirement (in which case the constraint is what's making you reach for parallelism), or a stretch goal you'd negotiate against engineering cost?
 >
 > ---
-> **Fathom Score**: `███████░░░░░░░ 52%` (Δ +52%)
-> Dimensions active: WHAT, WHY, HOW | next: WHO
+> Fathom Score
+> ███████░░░░░░░ 52% (+52)
 
 **Bad version:**
 
